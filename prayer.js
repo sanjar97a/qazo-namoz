@@ -31,6 +31,8 @@ export const fmtDate = (d) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.
 
 // "KK.OO.YYYY" -> Date | null
 export function parseDate(str) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec((str || '').trim());
+  if (iso) str = `${iso[3]}.${iso[2]}.${iso[1]}`;
   const m = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec((str || '').trim());
   if (!m) return null;
   const d = new Date(+m[3], +m[2] - 1, +m[1], 12);

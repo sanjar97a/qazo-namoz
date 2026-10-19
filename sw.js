@@ -1,5 +1,5 @@
 // Oflayn ishlash uchun: fayllarni keshda saqlaydi. Yangilash chiqarganda VERSION ni oshiring.
-const VERSION = 'namoz-qazo-v1';
+const VERSION = 'namoz-qazo-v2';
 const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -14,7 +14,16 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Avval internetdan (yangilanish darhol keladi), internet bo'lmasa keshdan
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request)));
+  if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
+  e.respondWith(
+    fetch(e.request)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(VERSION).then((c) => c.put(e.request, copy));
+        return res;
+      })
+      .catch(() => caches.match(e.request, { ignoreSearch: true })),
+  );
 });

@@ -147,9 +147,9 @@ function renderSetup() {
 
     <div class="section">Eski qazolar (ixtiyoriy)</div>
     <p class="hint">Bo‘sh qoldirsangiz, hisob 0 dan boshlanadi. Keyin qo‘lda ham o‘zgartirsa bo‘ladi.</p>
-    <label>Tug‘ilgan sana (KK.OO.YYYY)</label><input type="text" inputmode="numeric" data-f="birth" value="${esc(f.birth)}" placeholder="02.01.1998" />
+    <label>Tug‘ilgan sana</label><input type="date" data-f="birth" value="${esc(f.birth)}" max="${isoToday()}" />
     <label>Balog‘at yoshi</label><input type="number" data-f="bulughAge" value="${esc(f.bulughAge)}" />
-    <label>Namozni boshlagan sana (KK.OO.YYYY)</label><input type="text" inputmode="numeric" data-f="start" value="${esc(f.start)}" placeholder="30.12.2009" />
+    <label>Namozni boshlagan sana</label><input type="date" data-f="start" value="${esc(f.start)}" max="${isoToday()}" />
     ${f.gender === 'ayol' ? `<label>Oyiga o‘rtacha hayz kunlari</label><input type="number" data-f="hayzDays" value="${esc(f.hayzDays)}" />` : ''}
 
     <div class="section">Sozlamalar</div>
@@ -177,7 +177,9 @@ function renderSetup() {
     let qazo = { ...EMPTY.qazo };
     if (f.birth || f.start) {
       const birth = parseDate(f.birth), start = parseDate(f.start);
-      if (!birth || !start) return toast('Sanalarni KK.OO.YYYY ko‘rinishida kiriting.');
+      if (!birth) return toast('Tug‘ilgan sanani tanlang.');
+      if (!start) return toast('Namozni boshlagan sanani tanlang.');
+      if (start < birth) return toast('Namozni boshlagan sana tug‘ilgan sanadan keyin bo‘lishi kerak.');
       qazo = initialQazo({ birth, startDate: start, bulughAge: f.bulughAge, includeVitr: f.includeVitr, gender: f.gender, hayzDays: f.hayzDays });
     }
     form = null;
@@ -256,8 +258,10 @@ function renderSettings() {
   };
 }
 
+function isoToday() { return dayKey(new Date()); }
+
 function bindInputs(f) {
-  $app.querySelectorAll('[data-f]').forEach((el) => { el.oninput = () => { f[el.dataset.f] = el.value; }; });
+  $app.querySelectorAll('[data-f]').forEach((el) => { el.oninput = el.onchange = () => { f[el.dataset.f] = el.value; }; });
 }
 
 render();
