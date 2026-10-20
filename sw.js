@@ -1,5 +1,5 @@
 // Oflayn ishlash uchun: fayllarni keshda saqlaydi. Yangilash chiqarganda VERSION ni oshiring.
-const VERSION = 'namoz-qazo-v3';
+const VERSION = 'namoz-qazo-v4';
 const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'location.js', 'official.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -14,16 +14,24 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Avval internetdan (yangilanish darhol keladi), internet bo'lmasa keshdan
+// Avval internetdan (yangilanish darhol keladi). Internet yo'q yoki 3 soniyada javob
+// kelmasa — keshdagi nusxa ochiladi, yangisi esa fonda keshga yoziladi.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
-  e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(VERSION).then((c) => c.put(e.request, copy));
-        return res;
-      })
-      .catch(() => caches.match(e.request, { ignoreSearch: true })),
-  );
+  const network = fetch(e.request).then((res) => {
+    if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
+    return res;
+  });
+  e.waitUntil(network.catch(() => {}));
+  e.respondWith(new Promise((resolve) => {
+    let done = false;
+    const fromCache = () => caches.match(e.request, { ignoreSearch: true }).then((hit) => {
+      if (hit && !done) { done = true; resolve(hit); }
+      return hit;
+    });
+    const timer = setTimeout(fromCache, 3000);
+    network
+      .then((res) => { clearTimeout(timer); if (!done) { done = true; resolve(res); } })
+      .catch(() => { clearTimeout(timer); fromCache().then((hit) => { if (!hit && !done) { done = true; resolve(Response.error()); } }); });
+  }));
 });
