@@ -46,10 +46,25 @@
     .q .num { font-size: 26px; font-weight: 700; margin: 10px 0; }
     .q button { width: 52px; height: 44px; padding: 0; font-size: 24px; margin: 0 4px; background: transparent; }
     label { display: block; color: var(--sub); font-size: 12px; margin: 12px 0 4px; }
-    input[type=text], input[type=number], input[type=date], textarea { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
+    input[type=text], input[type=number], input[type=date], input[type=time], select, textarea { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--line);
       border-radius: 12px; padding: 12px; font: inherit; }
     input[type=date] { color-scheme: dark; min-height: 46px; }
     textarea { height: 90px; resize: vertical; }
+    input[type=time], select { color-scheme: dark; min-height: 46px; }
+    .note { position: relative; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 34px 12px 14px;
+      margin-top: 16px; font-size: 13px; line-height: 1.5; color: var(--sub); }
+    .note b { color: var(--text); }
+    .note .x { position: absolute; top: 4px; right: 4px; border: 0; background: none; padding: 6px 10px; color: var(--sub); font-size: 18px; }
+    .install { background: var(--green); border-color: var(--green); color: #fff; margin-top: 16px; }
+    .loc { background: var(--card); border: 1px solid var(--green); border-radius: 12px; padding: 12px; margin-top: 10px; line-height: 1.5; }
+    .warn { color: var(--orange); }
+    .results { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    .result { text-align: left; font-weight: 500; padding: 11px 12px; }
+    .times { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .trow { display: flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 6px 6px 14px; }
+    .trow input[type=time] { width: 150px; flex: none; }
+    .off { color: var(--orange); font-size: 12px; }
+    .mini { padding: 6px 10px; font-size: 14px; }
     .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .chip { border-radius: 20px; padding: 8px 14px; font-weight: 500; }
     .chip.on { background: var(--blue); border-color: var(--blue); color: #fff; }

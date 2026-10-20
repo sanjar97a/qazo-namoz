@@ -4,6 +4,8 @@ import {
   CalculationMethod,
   PrayerTimes,
   Madhab,
+  HighLatitudeRule,
+  PolarCircleResolution,
 } from './adhan.js';
 
 export const PRAYERS = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'vitr'];
@@ -40,22 +42,110 @@ export function parseDate(str) {
   return d;
 }
 
-// --- Hisoblash parametrlari (Hanafiy asr) ---
+// --- Hisoblash usullari (dunyo bo'yicha) ---
+const angles = (f, i) => () => { const p = CalculationMethod.Other(); p.fajrAngle = f; p.ishaAngle = i; return p; };
+export const METHODS = {
+  uzbekistan: { label: 'O‘zbekiston / Markaziy Osiyo (15°/15°)', make: angles(15, 15) },
+  russia: { label: 'Rossiya (16°/15°)', make: angles(16, 15) },
+  turkey: { label: 'Turkiya (Diyanet)', make: () => CalculationMethod.Turkey() },
+  mwl: { label: 'Musulmon olami ligasi (Yevropa, Osiyo)', make: () => CalculationMethod.MuslimWorldLeague() },
+  isna: { label: 'Shimoliy Amerika (ISNA)', make: () => CalculationMethod.NorthAmerica() },
+  moonsighting: { label: 'Buyuk Britaniya (Moonsighting)', make: () => CalculationMethod.MoonsightingCommittee() },
+  ummalqura: { label: 'Saudiya Arabistoni (Umm al-Quro)', make: () => CalculationMethod.UmmAlQura() },
+  dubai: { label: 'BAA (Dubay)', make: () => CalculationMethod.Dubai() },
+  qatar: { label: 'Qatar', make: () => CalculationMethod.Qatar() },
+  kuwait: { label: 'Quvayt', make: () => CalculationMethod.Kuwait() },
+  egypt: { label: 'Misr', make: () => CalculationMethod.Egyptian() },
+  karachi: { label: 'Pokiston, Hindiston', make: () => CalculationMethod.Karachi() },
+  singapore: { label: 'Malayziya, Indoneziya, Singapur', make: () => CalculationMethod.Singapore() },
+  custom: { label: 'O‘zim belgilayman (burchaklar)', make: null },
+};
+
+const BY_COUNTRY = {
+  UZ: 'uzbekistan', KZ: 'uzbekistan', KG: 'uzbekistan', TJ: 'uzbekistan', TM: 'uzbekistan', AF: 'uzbekistan',
+  RU: 'russia', BY: 'russia', TR: 'turkey', AZ: 'turkey',
+  US: 'isna', CA: 'isna', GB: 'moonsighting', IE: 'moonsighting',
+  SA: 'ummalqura', YE: 'ummalqura', AE: 'dubai', QA: 'qatar', KW: 'kuwait',
+  EG: 'egypt', SD: 'egypt', LY: 'egypt', PK: 'karachi', IN: 'karachi', BD: 'karachi',
+  MY: 'singapore', ID: 'singapore', SG: 'singapore', BN: 'singapore',
+};
+const TZ_COUNTRY = {
+  'Asia/Tashkent': 'UZ', 'Asia/Samarkand': 'UZ', 'Asia/Almaty': 'KZ', 'Asia/Bishkek': 'KG', 'Asia/Dushanbe': 'TJ',
+  'Europe/Moscow': 'RU', 'Europe/Istanbul': 'TR', 'Europe/London': 'GB', 'Asia/Riyadh': 'SA', 'Asia/Dubai': 'AE',
+  'Asia/Qatar': 'QA', 'Asia/Kuwait': 'KW', 'Africa/Cairo': 'EG', 'Asia/Karachi': 'PK', 'Asia/Kolkata': 'IN',
+  'Asia/Kuala_Lumpur': 'MY', 'Asia/Jakarta': 'ID', 'Asia/Singapore': 'SG', 'Asia/Baku': 'AZ', 'Europe/Minsk': 'BY',
+};
+
+// Davlat kodiga (yoki telefon vaqt mintaqasiga) qarab mos hisoblash usuli
+export function suggestMethod(countryCode, timeZone) {
+  let cc = (countryCode || '').toUpperCase();
+  if (!cc && timeZone) {
+    cc = TZ_COUNTRY[timeZone] || '';
+    if (!cc && /^America\//.test(timeZone)) cc = 'US';
+    if (!cc && /^(Asia\/(Yekaterinburg|Omsk|Novosibirsk|Krasnoyarsk|Irkutsk|Yakutsk|Vladivostok)|Europe\/(Samara|Volgograd|Kaliningrad))$/.test(timeZone)) cc = 'RU';
+  }
+  return BY_COUNTRY[cc] || 'mwl';
+}
+
 function params(settings) {
-  const p = CalculationMethod.Other();
-  p.fajrAngle = Number(settings.fajrAngle ?? 15);
-  p.ishaAngle = Number(settings.ishaAngle ?? 15);
-  p.madhab = Madhab.Hanafi;
+  const m = METHODS[settings.method] || METHODS.uzbekistan;
+  let p;
+  if (m.make) p = m.make();
+  else { p = CalculationMethod.Other(); p.fajrAngle = Number(settings.fajrAngle) || 15; p.ishaAngle = Number(settings.ishaAngle) || 15; }
+  p.madhab = settings.madhab === 'shafi' ? Madhab.Shafi : Madhab.Hanafi;
+  // Shimoliy mamlakatlarda (Rossiya, Yevropa) yozda tun qisqa — maxsus qoida
+  if (Math.abs(Number(settings.lat)) > 48) p.highLatitudeRule = HighLatitudeRule.recommended(new Coordinates(Number(settings.lat), Number(settings.lng)));
+  p.polarCircleResolution = PolarCircleResolution.AqrabYaum;
   return p;
+}
+
+export const TIME_KEYS = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
+export const TIME_NAMES = { ...NAMES, sunrise: 'Quyosh chiqishi' };
+
+// Rasmiy taqvim (viloyat markazi uchun): { region, lat, lng, days: { '2026-10-20': { fajr: '05:24', ... } } }
+let official = null;
+export function setOfficial(o) { official = o && o.days ? o : null; }
+
+function calc(lat, lng, d, settings) {
+  const t = new PrayerTimes(new Coordinates(Number(lat), Number(lng)), d, params(settings));
+  return { fajr: t.fajr, sunrise: t.sunrise, dhuhr: t.dhuhr, asr: t.asr, maghrib: t.maghrib, isha: t.isha };
+}
+
+// Kunning asosiy vaqtlari.
+// Rasmiy taqvim bo'lsa: viloyat markazining rasmiy vaqti + (sizning joyingiz bilan markaz orasidagi
+// astronomik farq). Shu tarzda vaqt rasmiy taqvimga mos, lekin aynan turgan joyingiz uchun chiqadi.
+// Rasmiy taqvim bo'lmasa: GPS koordinatadan hisoblanadi. Oxirida qo'lda kiritilgan tuzatishlar qo'shiladi.
+export function baseTimes(date, settings, withOffsets = true) {
+  const d = noon(date);
+  const here = calc(settings.lat, settings.lng, d, settings);
+  let t = here, source = 'calc', region = null;
+  const rec = settings.source !== 'gps' && official?.days?.[dayKey(d)];
+  if (rec) {
+    const center = calc(official.lat, official.lng, d, settings);
+    t = {};
+    for (const k of TIME_KEYS) {
+      const [h, mi] = rec[k].split(':').map(Number);
+      const shift = Math.round((here[k] - center[k]) / 60000) * 60000;
+      t[k] = new Date(new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, mi).getTime() + shift);
+    }
+    source = 'official';
+    region = official.region;
+  }
+  if (withOffsets) {
+    t = { ...t };
+    for (const k of TIME_KEYS) {
+      const o = Number(settings.offsets?.[k]) || 0;
+      if (o) t[k] = new Date(t[k].getTime() + o * 60000);
+    }
+  }
+  return { ...t, source, region };
 }
 
 // Bir kunning namoz vaqtlari va har bir namozning "oynasi" (boshlanish - tugash)
 export function dayWindows(date, settings) {
-  const c = new Coordinates(Number(settings.lat), Number(settings.lng));
-  const pr = params(settings);
   const d = noon(date);
-  const t = new PrayerTimes(c, d, pr);
-  const tn = new PrayerTimes(c, addDays(d, 1), pr);
+  const t = baseTimes(d, settings);
+  const tn = baseTimes(addDays(d, 1), settings);
   return {
     times: t,
     windows: {

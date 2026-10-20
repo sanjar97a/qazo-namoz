@@ -1,0 +1,81 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { dayWindows, processMissed, togglePrayed, initialQazo, fmtTime, totalQazo } from '../prayer.js';
+
+const settings = { lat: 40.9983, lng: 71.6726, includeVitr: true, dailyGoal: 3, fajrAngle: 15, ishaAngle: 15 };
+const base = { settings, qazo: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, vitr: 0 }, log: {} };
+const at = (y, m, d, h, mi = 0) => new Date(y, m - 1, d, h, mi);
+
+test('Namangan vaqtlari mantiqiy tartibda', () => {
+  const { windows: w } = dayWindows(at(2026, 10, 19, 12), settings);
+  console.log('Namangan 19.10.2026:', Object.fromEntries(Object.entries(w).map(([k, v]) => [k, fmtTime(v.start)])));
+  assert.ok(w.fajr.start < w.fajr.end && w.fajr.end < w.dhuhr.start);
+  assert.ok(w.asr.start < w.maghrib.start && w.maghrib.start < w.isha.start);
+});
+
+test('Belgilanmagan namozlar bir kunda 6 ta qazo bo‘ladi', () => {
+  const s = { ...base, lastProcessed: at(2026, 10, 19, 6).getTime() }; // bomdod vaqti ichida, kechagi xufton tugagan
+  const { state, added } = processMissed(s, at(2026, 10, 20, 4)); // ertasi bomdoddan oldin
+  // bomdod, peshin, asr, shom tugagan; xufton/vitr hali tugamagan
+  assert.deepEqual(added, { fajr: 1, dhuhr: 1, asr: 1, maghrib: 1 });
+  const { state: s2, added: a2 } = processMissed(state, at(2026, 10, 20, 7));
+  assert.deepEqual(a2, { isha: 1, vitr: 1, fajr: 1 });
+  assert.equal(totalQazo(s2), 7);
+});
+
+test('O‘qilgan namoz qazoga qo‘shilmaydi va ikki marta sanalmaydi', () => {
+  let s = { ...base, lastProcessed: at(2026, 10, 19, 12, 0).getTime() };
+  const day = at(2026, 10, 19, 12);
+  const { windows: w } = dayWindows(day, settings);
+  s = togglePrayed(s, day, 'dhuhr', new Date(w.dhuhr.start.getTime() + 60000));
+  const r1 = processMissed(s, at(2026, 10, 19, 23));
+  assert.equal(r1.added.dhuhr, undefined);
+  assert.equal(r1.added.asr, 1);
+  const r2 = processMissed(r1.state, at(2026, 10, 19, 23, 30));
+  assert.deepEqual(r2.added, {});
+});
+
+test('Vitr o‘chirilsa hisoblanmaydi', () => {
+  const s = { ...base, settings: { ...settings, includeVitr: false }, lastProcessed: at(2026, 10, 19, 12).getTime() };
+  const { added } = processMissed(s, at(2026, 10, 21, 12));
+  assert.equal(added.vitr, undefined);
+});
+
+test('Boshlang‘ich qazo hisoblash', () => {
+  const q = initialQazo({ birth: at(1998, 1, 2, 12), bulughAge: 12, startDate: at(2009, 12, 30, 12), includeVitr: true, gender: 'erkak' });
+  assert.equal(q.fajr, 0); // balog'atdan oldin boshlagan
+  const q2 = initialQazo({ birth: at(1998, 1, 2, 12), bulughAge: 12, startDate: at(2015, 1, 2, 12), includeVitr: false, gender: 'erkak' });
+  assert.equal(q2.fajr, 1826);
+  assert.equal(q2.vitr, 0);
+});
+
+import { baseTimes, setOfficial, suggestMethod } from '../prayer.js';
+
+test('Rasmiy taqvim + joyga moslash + qo‘lda tuzatish', () => {
+  const d = at(2026, 10, 20, 12);
+  setOfficial({ region: 'Namangan', lat: 40.9983, lng: 71.6726,
+    days: { '2026-10-20': { fajr: '05:30', sunrise: '06:50', dhuhr: '12:10', asr: '15:40', maghrib: '17:25', isha: '18:45' } } });
+  const s = { ...settings, lat: 40.9983, lng: 71.6726, source: 'auto' };
+  assert.equal(fmtTime(baseTimes(d, s).fajr), '05:30'); // markazda — aynan rasmiy
+  const east = baseTimes(d, { ...s, lng: 72.2 }); // ~45 km sharqda — ertaroq
+  assert.ok(east.dhuhr < baseTimes(d, s).dhuhr);
+  assert.equal(fmtTime(baseTimes(d, { ...s, offsets: { isha: 5 } }).isha), '18:50');
+  assert.equal(baseTimes(d, { ...s, source: 'gps' }).source, 'calc');
+  setOfficial(null);
+});
+
+test('Dunyo bo‘yicha: usul tanlash va shimoliy kenglik', () => {
+  assert.equal(suggestMethod('RU'), 'russia');
+  assert.equal(suggestMethod('', 'Asia/Seoul'), 'mwl');
+  assert.equal(suggestMethod('', 'America/New_York'), 'isna');
+  assert.equal(suggestMethod('', 'Europe/Istanbul'), 'turkey');
+  const places = { Moskva: [55.7558, 37.6173, 'russia'], Seul: [37.5665, 126.978, 'mwl'], NewYork: [40.7128, -74.006, 'isna'], London: [51.5074, -0.1278, 'moonsighting'] };
+  for (const [n, [lat, lng, method]] of Object.entries(places)) {
+    for (const date of [at(2026, 6, 21, 12), at(2026, 12, 21, 12)]) {
+      const t = baseTimes(date, { lat, lng, method, madhab: 'hanafi' });
+      const ok = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'].every((k) => t[k] instanceof Date && !isNaN(t[k]));
+      assert.ok(ok, `${n} ${date}`);
+      assert.ok(t.fajr < t.sunrise && t.sunrise < t.dhuhr && t.dhuhr < t.asr && t.asr < t.maghrib && t.maghrib < t.isha, n);
+    }
+  }
+});

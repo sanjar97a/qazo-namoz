@@ -1,7 +1,7 @@
 {
   "name": "Namoz va Qazo",
   "short_name": "Namoz",
-  "description": "Namoz vaqtlari va avtomatik qazo hisobi",
+  "description": "Namoz vaqtlari (dunyo bo‘yicha) va avtomatik qazo hisobi",
   "lang": "uz",
   "start_url": "./",
   "scope": "./",
@@ -10,7 +10,24 @@
   "background_color": "#0B1220",
   "theme_color": "#0B1220",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
-  ]
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "./"
 }

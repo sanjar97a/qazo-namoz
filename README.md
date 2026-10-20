@@ -1,5 +1,7 @@
 # Namoz va Qazo (PWA)
 
+Dunyo bo‘yicha ishlaydi: GPS bo‘yicha aniq joy uchun hisoblaydi, usul davlatga qarab avtomatik tanlanadi (Rossiya, Turkiya, AQSh, Yevropa, Koreya…). O‘zbekistonda islomapi.uz rasmiy taqvimi joyingizga moslab ishlatiladi. Sozlamalarda har bir vaqtni qo‘lda to‘g‘rilash mumkin.
+
 Namoz vaqtlari + avtomatik qazo hisobi. Vaqti tugaguncha "O'qidim" bosilmagan namoz qazo hisobiga +1 bo'ladi. Hisob faqat siz "−" bosganda kamayadi. Ma'lumotlar telefonda (localStorage), internetsiz ishlaydi.
 
 ## GitHub Pages'ga joylash

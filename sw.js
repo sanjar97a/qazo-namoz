@@ -1,6 +1,6 @@
 // Oflayn ishlash uchun: fayllarni keshda saqlaydi. Yangilash chiqarganda VERSION ni oshiring.
-const VERSION = 'namoz-qazo-v2';
-const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const VERSION = 'namoz-qazo-v3';
+const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'location.js', 'official.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
