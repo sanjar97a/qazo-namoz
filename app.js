@@ -7,6 +7,17 @@ import {
 } from './location.js';
 import { applyOfficial, refreshOfficial } from './official.js';
 
+// ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
+const SUPPORT = {
+  payme: '',        // masalan: 'https://payme.uz/@sizning_nomingiz'
+  click: '',        // Click to'lov havolasi
+  card: '',         // karta raqami, masalan: '8600 1234 5678 9012'
+  cardOwner: '',    // karta egasi: 'Sanjarbek X.'
+  telegram: '',     // fikr va takliflar uchun: 'https://t.me/sizning_username'
+};
+const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
+const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
+
 const KEY = 'namoz-qazo-state-v1';
 const EMPTY = { settings: null, qazo: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, vitr: 0 }, log: {}, lastProcessed: null };
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
@@ -95,6 +106,7 @@ async function autoLocate() {
 function render() {
   if (!state.settings) return renderSetup();
   if (screen === 'settings') return renderSettings();
+  if (screen === 'support') return renderSupport();
   renderHome();
 }
 
@@ -166,9 +178,11 @@ function renderHome() {
       ${finish ? `<div class="finish">Taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
     </div>
     <div class="grid">${counters}</div>
-    <p class="hint">“−” — qazo namozni ado qildingiz. Hisob faqat siz bosganda kamayadi.</p>`;
+    <p class="hint">“−” — qazo namozni ado qildingiz. Hisob faqat siz bosganda kamayadi.</p>
+    ${shareCardHtml()}`;
 
   bindInstall();
+  bindShareCard();
   $app.querySelector('#toSettings').onclick = () => { screen = 'settings'; form = null; render(); };
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
@@ -370,6 +384,10 @@ function renderSettings() {
 
     <button class="btn primary" id="save" style="margin-top:20px">Saqlash</button>
 
+    <div class="section">Ilova haqida</div>
+    <button class="btn" id="shareBtn">📤 Do‘stlarga ulashish</button>
+    <button class="btn" id="supportBtn">🤲 Loyihani qo‘llab-quvvatlash</button>
+
     <div class="section">Zaxira</div>
     <button class="btn" id="export">Zaxira faylni yuklab olish</button>
     <label>Zaxira faylini tanlang</label><input type="file" id="importFile" accept=".json,application/json" />
@@ -400,6 +418,8 @@ function renderSettings() {
   if (ra) ra.onclick = () => { f.offsets = {}; render(); };
 
   $app.querySelector('#back').onclick = () => { screen = 'home'; form = null; applyOfficial(state.settings); render(); };
+  $app.querySelector('#shareBtn').onclick = shareApp;
+  $app.querySelector('#supportBtn').onclick = () => { screen = 'support'; form = null; applyOfficial(state.settings); render(); };
   $app.querySelector('#save').onclick = () => {
     const settings = { ...s, name: f.name.trim(), dailyGoal: Number(f.dailyGoal) || 0, includeVitr: f.includeVitr,
       city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode, method: f.method, methodAuto: f.methodAuto,
@@ -435,6 +455,71 @@ function renderSettings() {
     try { localStorage.removeItem(KEY); } catch {}
     state = { ...EMPTY }; screen = 'home'; form = null; render();
   };
+}
+
+/* ---------------- Ulashish va qo'llab-quvvatlash ---------------- */
+async function shareApp() {
+  const data = { title: 'Namoz va Qazo', text: SHARE_TEXT, url: APP_URL };
+  if (navigator.share) {
+    try { await navigator.share(data); return; } catch (e) { if (e?.name === 'AbortError') return; }
+  }
+  window.open(`https://t.me/share/url?url=${encodeURIComponent(APP_URL)}&text=${encodeURIComponent(SHARE_TEXT)}`, '_blank');
+}
+
+async function copyText(text, msg) {
+  try { await navigator.clipboard.writeText(text); toast(msg); }
+  catch { prompt('Nusxa oling:', text); }
+}
+
+const hasSupport = () => Boolean(SUPPORT.payme || SUPPORT.click || SUPPORT.card);
+
+function shareCardHtml() {
+  return `
+    <div class="card share">
+      <h2>Ilova foydali bo‘lsa</h2>
+      <p class="sub" style="margin:0 0 12px">Yaqinlaringizga ulashing. “Yaxshilikka yo‘l ko‘rsatgan kishiga uni qilgan kishining savobi kabi savob bor” (Muslim rivoyati).</p>
+      <button class="btn primary" id="shareHome">📤 Do‘stlarga ulashish</button>
+      <button class="btn" id="supportHome">🤲 Loyihani qo‘llab-quvvatlash</button>
+    </div>`;
+}
+function bindShareCard() {
+  $app.querySelector('#shareHome').onclick = shareApp;
+  $app.querySelector('#supportHome').onclick = () => { screen = 'support'; render(); };
+}
+
+function renderSupport() {
+  const pay = [];
+  if (SUPPORT.payme) pay.push(`<a class="btn pay" href="${esc(SUPPORT.payme)}" target="_blank" rel="noopener">Payme orqali</a>`);
+  if (SUPPORT.click) pay.push(`<a class="btn pay" href="${esc(SUPPORT.click)}" target="_blank" rel="noopener">Click orqali</a>`);
+  if (SUPPORT.card) pay.push(`
+    <div class="cardno">
+      <div class="grow"><div class="sub">Karta raqami${SUPPORT.cardOwner ? ` · ${esc(SUPPORT.cardOwner)}` : ''}</div>
+        <div class="num">${esc(SUPPORT.card)}</div></div>
+      <button id="copyCard">Nusxa</button>
+    </div>`);
+
+  $app.innerHTML = `
+    <div class="row"><button class="icon" id="back" aria-label="Orqaga">←</button><h1>Qo‘llab-quvvatlash</h1></div>
+    <p class="sub" style="line-height:1.6;margin-top:16px">
+      Bu ilova bepul va reklamasiz. Uning asosiy imkoniyatlari — namoz vaqtlari va qazo hisobi — doim bepul qoladi.
+      Loyihani rivojlantirishga (azon bildirishnomalari, Play Market versiyasi, yangi tillar) yordam bermoqchi bo‘lsangiz:
+    </p>
+
+    <div class="section">Ehson</div>
+    ${pay.length ? pay.join('') : '<p class="hint">Ehson qilish usullari tez orada qo‘shiladi.</p>'}
+    <p class="hint">Har qanday miqdor ixtiyoriy. Ilovadan foydalanish uchun to‘lov shart emas.</p>
+
+    <div class="section">Pulsiz yordam</div>
+    <button class="btn primary" id="shareSup">📤 Do‘stlarga ulashish</button>
+    <button class="btn" id="copyLink">🔗 Havolani nusxalash</button>
+    ${SUPPORT.telegram ? `<a class="btn pay" href="${esc(SUPPORT.telegram)}" target="_blank" rel="noopener">💬 Fikr va taklif yuborish</a>` : ''}
+    <p class="hint">Ilovani ishlatib, xato yoki noto‘g‘ri vaqtni ko‘rsangiz, xabar bering — bu ham katta yordam.</p>`;
+
+  $app.querySelector('#back').onclick = () => { screen = 'home'; render(); };
+  $app.querySelector('#shareSup').onclick = shareApp;
+  $app.querySelector('#copyLink').onclick = () => copyText(APP_URL, 'Havola nusxalandi');
+  const cc = $app.querySelector('#copyCard');
+  if (cc) cc.onclick = () => copyText(SUPPORT.card.replace(/\s/g, ''), 'Karta raqami nusxalandi');
 }
 
 function bindInputs(f) {
