@@ -22,7 +22,7 @@ const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '8';
+export const APP_VERSION = '9';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -65,26 +65,54 @@ const isStandalone = () => matchMedia('(display-mode: standalone)').matches || n
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; render(); });
 window.addEventListener('appinstalled', () => { installEvt = null; toast('Ilova o‘rnatildi. Endi bosh ekrandan oching.'); render(); });
 
+const isAndroid = () => /android/i.test(navigator.userAgent);
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const INSTALL_HIDE_KEY = 'install-card-hidden-until';
+
+// Saytda (brauzerda) ochilganda: ekran tepasida "Ilovani o'rnatish" kartasi.
+// Android ilovaning ichida ko'rinmaydi. Yopilsa, 3 kundan keyin yana chiqadi.
 function installHtml(force) {
-  if (isNative() || isStandalone()) return '';
-  if (installEvt) return '<button class="btn install" id="install">📲 Telefonga ilova qilib o‘rnatish</button>';
-  let hidden = false;
-  try { hidden = localStorage.getItem('install-note-hidden') === '1'; } catch {}
-  if (hidden && !force) return '';
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  return `<div class="note">
-    ${force ? '' : '<button class="x" id="hideInstall" aria-label="Yopish">×</button>'}
-    📲 <b>Ilova qilib o‘rnatish:</b> ${ios
-      ? 'Safari’da oching → “Ulashish” ⬆︎ → <b>“На экран Домой / Add to Home Screen”</b>.'
-      : 'sahifani <b>Chrome</b>’da oching (Telegram ichida emas) → ⋮ menyu → <b>“Ilovani o‘rnatish”</b> yoki <b>“Bosh ekranga qo‘shish”</b>.'}
-    ${/android/i.test(navigator.userAgent) ? `<br>🔔 Bildirishnomali to‘liq versiya: <a href="${APK_URL}" style="color:var(--blue)"><b>Android ilovani yuklab olish (APK)</b></a>` : ''}
-  </div>`;
+  if (isNative()) return '';
+  if (!force) {
+    let until = 0;
+    try { until = Number(localStorage.getItem(INSTALL_HIDE_KEY)) || 0; } catch {}
+    if (Date.now() < until) return '';
+  }
+  const close = force ? '' : '<button class="x" id="hideInstall" aria-label="Yopish">×</button>';
+  if (isAndroid()) {
+    const pwaBtn = !isStandalone() && installEvt ? '<button class="btn" id="install">📲 Brauzer orqali o‘rnatish (bildirishnomasiz)</button>' : '';
+    return `<div class="install-card">${close}
+      <div class="ic-title">📲 Ilovani telefonga o‘rnating</div>
+      <div class="ic-text">Android ilovada namoz vaqti kirganda va tugashidan oldin <b>bildirishnoma</b> keladi, internetsiz ishlaydi.</div>
+      <a class="btn install" href="${APK_URL}" id="apkLink">⬇️ Android ilovani yuklab olish</a>
+      ${pwaBtn}
+      <div class="ic-hint">Yuklangan faylni oching → “O‘rnatish”. Birinchi marta “Noma’lum manbalarga ruxsat” so‘ralsa, ruxsat bering.
+        ${isStandalone() ? '' : 'Telegram ichida ochilgan bo‘lsa, avval sahifani Chrome’da oching.'}</div>
+    </div>`;
+  }
+  if (isStandalone()) return '';
+  if (installEvt) {
+    return `<div class="install-card">${close}
+      <div class="ic-title">📲 Ilovani o‘rnating</div>
+      <div class="ic-text">Bosh ekrandan bir bosishda ochiladi va internetsiz ishlaydi.</div>
+      <button class="btn install" id="install">O‘rnatish</button></div>`;
+  }
+  if (isIOS()) {
+    return `<div class="install-card">${close}
+      <div class="ic-title">📲 iPhone’ga o‘rnatish</div>
+      <div class="ic-text"><b>Safari</b>’da oching → pastdagi <b>“Ulashish” ⬆︎</b> tugmasi → <b>“На экран «Домой» / Add to Home Screen”</b> → “Qo‘shish”.</div></div>`;
+  }
+  return `<div class="install-card">${close}
+    <div class="ic-title">📲 Ilovani o‘rnating</div>
+    <div class="ic-text">Brauzer menyusidan (⋮) <b>“Ilovani o‘rnatish”</b> yoki <b>“Bosh ekranga qo‘shish”</b> ni tanlang.</div></div>`;
 }
 function bindInstall() {
   const b = $app.querySelector('#install');
   if (b) b.onclick = async () => { installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; render(); };
   const x = $app.querySelector('#hideInstall');
-  if (x) x.onclick = () => { try { localStorage.setItem('install-note-hidden', '1'); } catch {} render(); };
+  if (x) x.onclick = () => { try { localStorage.setItem(INSTALL_HIDE_KEY, String(Date.now() + 3 * 86400000)); } catch {} render(); };
+  const a = $app.querySelector('#apkLink');
+  if (a) a.onclick = () => toast('Yuklab olinmoqda… Tugagach, faylni oching va “O‘rnatish”ni bosing.', 7000);
 }
 
 /* ---------------- Qazo tekshiruvi ---------------- */
@@ -114,7 +142,10 @@ async function autoLocate() {
 }
 
 /* ---------------- Ekranlar ---------------- */
+let lastScreen = null;
 function render() {
+  const cur = state.settings ? screen : 'setup';
+  if (cur !== lastScreen) { lastScreen = cur; window.scrollTo(0, 0); }
   if (!state.settings) renderSetup();
   else if (screen === 'settings') renderSettings();
   else if (screen === 'support') renderSupport();
@@ -193,6 +224,7 @@ function renderHome() {
     </div>`).join('');
 
   $app.innerHTML = `
+    ${installHtml(false)}
     <div class="row">
       <div class="grow">
         <div class="sub">Assalomu alaykum</div>
@@ -201,7 +233,6 @@ function renderHome() {
       </div>
       <button class="icon" id="toSettings" aria-label="Sozlamalar">⚙︎</button>
     </div>
-    ${installHtml(false)}
 
     <div class="section">Bugungi namozlar</div>
     ${prayers}
