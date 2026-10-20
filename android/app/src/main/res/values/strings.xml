@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Namoz va Qazo</string>
+    <string name="title_activity_main">Namoz va Qazo</string>
+    <string name="package_name">uz.sanjar97a.namozqazo</string>
+    <string name="custom_url_scheme">uz.sanjar97a.namozqazo</string>
+</resources>

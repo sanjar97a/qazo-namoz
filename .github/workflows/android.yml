@@ -1,0 +1,45 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Versiya
+        id: ver
+        run: echo "v=$(node -p "require('./version.json').version")" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: APK yasash
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PappVersionCode=${{ steps.ver.outputs.v }} -PappVersionName=1.${{ steps.ver.outputs.v }}
+      - run: cp android/app/build/outputs/apk/release/app-release.apk namoz-qazo.apk
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Namoz va Qazo v${{ steps.ver.outputs.v }}
+          body: |
+            Android ilova (APK). Telefonda faylni ochib o'rnating.
+            Birinchi marta "Noma'lum manbalardan o'rnatish"ga ruxsat so'raladi.
+            Yangi versiya eskisining ustiga o'rnatiladi — ma'lumotlar o'chmaydi.
+          files: namoz-qazo.apk
+          make_latest: true

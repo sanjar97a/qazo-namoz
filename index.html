@@ -87,7 +87,7 @@
   <div id="app"></div>
   <script type="module" src="app.js"></script>
   <script>
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+    if ('serviceWorker' in navigator && !window.Capacitor?.isNativePlatform?.()) navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
   </script>
 </body>
 </html>

@@ -6,6 +6,9 @@ import {
   detectLocation, distanceKm, locationErrorText, permissionGranted, placeName, quietPosition, searchCity,
 } from './location.js';
 import { applyOfficial, refreshOfficial } from './official.js';
+import {
+  APK_URL, DEFAULT_NOTIFY, isNative, notifyStatus, openExactSetting, refreshStatus, requestPermission, reschedule, testNotification,
+} from './notify.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
 const SUPPORT = {
@@ -19,7 +22,7 @@ const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '6';
+export const APP_VERSION = '7';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -36,10 +39,13 @@ function load() {
   try { const r = localStorage.getItem(KEY); return r ? { ...EMPTY, ...JSON.parse(r) } : { ...EMPTY }; }
   catch { return { ...EMPTY }; }
 }
+let schedTimer = null;
 function save(next) {
   state = next;
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
   render();
+  clearTimeout(schedTimer);
+  schedTimer = setTimeout(() => reschedule(state, true), 1500);
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hm = (d) => fmtTime(d);
@@ -60,7 +66,7 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); inst
 window.addEventListener('appinstalled', () => { installEvt = null; toast('Ilova o‘rnatildi. Endi bosh ekrandan oching.'); render(); });
 
 function installHtml(force) {
-  if (isStandalone()) return '';
+  if (isNative() || isStandalone()) return '';
   if (installEvt) return '<button class="btn install" id="install">📲 Telefonga ilova qilib o‘rnatish</button>';
   let hidden = false;
   try { hidden = localStorage.getItem('install-note-hidden') === '1'; } catch {}
@@ -71,6 +77,7 @@ function installHtml(force) {
     📲 <b>Ilova qilib o‘rnatish:</b> ${ios
       ? 'Safari’da oching → “Ulashish” ⬆︎ → <b>“На экран Домой / Add to Home Screen”</b>.'
       : 'sahifani <b>Chrome</b>’da oching (Telegram ichida emas) → ⋮ menyu → <b>“Ilovani o‘rnatish”</b> yoki <b>“Bosh ekranga qo‘shish”</b>.'}
+    ${/android/i.test(navigator.userAgent) ? `<br>🔔 Bildirishnomali to‘liq versiya: <a href="${APK_URL}" style="color:var(--blue)"><b>Android ilovani yuklab olish (APK)</b></a>` : ''}
   </div>`;
 }
 function bindInstall() {
@@ -122,7 +129,7 @@ function render() {
 async function checkUpdate() {
   if (!navigator.onLine) return;
   try {
-    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const r = await fetch(`${isNative() ? APP_URL : ''}version.json?t=${Date.now()}`, { cache: 'no-store' });
     const v = String((await r.json()).version || '');
     if (v && v !== APP_VERSION && v !== newVersion) { newVersion = v; render(); }
   } catch {}
@@ -131,6 +138,7 @@ async function checkUpdate() {
 
 // Faqat ilova fayllari keshi tozalanadi — sizning ma'lumotlaringiz (qazo, sozlamalar) saqlanib qoladi
 async function applyUpdate() {
+  if (isNative()) { location.href = APK_URL; return; } // yangi APK yuklab olinadi va ustidan o'rnatiladi
   const b = $app.querySelector('#doUpdate');
   if (b) { b.disabled = true; b.textContent = '⏳'; }
   try {
@@ -356,7 +364,9 @@ function renderSetup() {
       name: f.name.trim(), city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode || '',
       method: f.method, methodAuto: f.methodAuto, madhab: f.madhab, fajrAngle: Number(f.fajrAngle) || 15, ishaAngle: Number(f.ishaAngle) || 15,
       source: 'auto', autoLocation: true, offsets: {}, includeVitr: f.includeVitr, dailyGoal: Number(f.dailyGoal) || 0, gender: f.gender,
+      notify: { ...DEFAULT_NOTIFY },
     };
+    if (isNative()) requestPermission().then(() => reschedule(state, true));
     form = null;
     applyOfficial(settings);
     save({ ...EMPTY, qazo, lastProcessed: Date.now(), settings });
@@ -373,6 +383,7 @@ function renderSettings() {
     countryCode: s.countryCode || '', method: s.method || 'uzbekistan', methodAuto: s.methodAuto, madhab: s.madhab || 'hanafi',
     fajrAngle: String(s.fajrAngle ?? 15), ishaAngle: String(s.ishaAngle ?? 15), source: s.source || 'auto',
     autoLocation: s.autoLocation !== false, offsets: { ...(s.offsets || {}) },
+    notify: { ...DEFAULT_NOTIFY, ...(s.notify || {}) },
   };
   const f = form;
   const temp = { ...s, ...f, fajrAngle: Number(f.fajrAngle) || 15, ishaAngle: Number(f.ishaAngle) || 15 };
@@ -408,6 +419,9 @@ function renderSettings() {
       farq eslab qolinadi va har kuni qo‘llanadi.</p>
     <div class="times">${timeRows}</div>
     ${TIME_KEYS.some((k) => Number(f.offsets[k])) ? '<button class="btn" id="resetAll">↺ Qo‘lda tuzatishlarni bekor qilish</button>' : ''}
+
+    <div class="section">Bildirishnomalar</div>
+    ${notifyHtml(f)}
 
     <div class="section">Boshqa</div>
     <label>Ismingiz</label><input type="text" data-f="name" value="${esc(f.name)}" />
@@ -452,6 +466,7 @@ function renderSettings() {
   if (ra) ra.onclick = () => { f.offsets = {}; render(); };
 
   $app.querySelector('#back').onclick = () => { screen = 'home'; form = null; applyOfficial(state.settings); render(); };
+  bindNotify(f);
   $app.querySelector('#shareBtn').onclick = shareApp;
   $app.querySelector('#checkUpd').onclick = async () => {
     await checkUpdate();
@@ -462,7 +477,7 @@ function renderSettings() {
     const settings = { ...s, name: f.name.trim(), dailyGoal: Number(f.dailyGoal) || 0, includeVitr: f.includeVitr,
       city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode, method: f.method, methodAuto: f.methodAuto,
       madhab: f.madhab, fajrAngle: Number(f.fajrAngle) || 15, ishaAngle: Number(f.ishaAngle) || 15,
-      source: f.source, autoLocation: f.autoLocation, offsets: { ...f.offsets } };
+      source: f.source, autoLocation: f.autoLocation, offsets: { ...f.offsets }, notify: { ...f.notify } };
     screen = 'home'; form = null;
     applyOfficial(settings);
     save({ ...state, settings });
@@ -495,9 +510,58 @@ function renderSettings() {
   };
 }
 
+/* ---------------- Bildirishnoma sozlamalari ---------------- */
+function notifyHtml(f) {
+  if (!isNative()) {
+    return `<p class="hint">Namoz vaqti kirganda va tugashidan oldin eslatma faqat <b>Android ilovada</b> ishlaydi
+      (brauzer yopiq ilovaga bildirishnoma yubora olmaydi). Qazo hisobi va sozlamalaringizni “Zaxira” orqali o‘tkazishingiz mumkin.</p>
+      <a class="btn primary" href="${APK_URL}">📥 Android ilovani yuklab olish (APK)</a>`;
+  }
+  const n = f.notify;
+  const perm = notifyStatus.permission;
+  const befores = [0, 10, 15, 20, 30, 45, 60];
+  return `
+    ${perm !== 'granted' ? `<div class="note" style="padding-right:14px">🔕 Bildirishnomalarga ruxsat berilmagan.
+      <button class="btn primary" id="askPerm">Ruxsat berish</button></div>` : ''}
+    ${perm === 'granted' && notifyStatus.exact === 'denied' ? `<div class="note" style="padding-right:14px">⏱ Eslatmalar bir necha daqiqa kechikishi mumkin.
+      Aniq vaqtda kelishi uchun “Signal va eslatmalar” ruxsatini yoqing.<button class="btn" id="askExact">Ruxsatni yoqish</button></div>` : ''}
+    <div class="switch"><span>Bildirishnomalar</span><input type="checkbox" id="nEnabled" ${n.enabled ? 'checked' : ''} /></div>
+    ${n.enabled ? `
+      <div class="switch"><span>Namoz vaqti kirganda</span><input type="checkbox" id="nStart" ${n.start ? 'checked' : ''} /></div>
+      <label>Vaqt tugashidan oldin eslatish<br><span class="sub">“O‘qidim” belgilangan bo‘lsa, kelmaydi</span></label>
+      <select id="nBefore">${befores.map((m) => `<option value="${m}" ${Number(n.before) === m ? 'selected' : ''}>${m ? `${m} daqiqa oldin` : 'Eslatmasin'}</option>`).join('')}</select>
+      <label>Har kuni qazo o‘qish eslatmasi</label>
+      <div class="row"><input type="time" id="nDaily" value="${esc(n.daily)}" />
+        ${n.daily ? '<button id="nDailyOff" style="padding:12px 14px">O‘chirish</button>' : ''}</div>
+      <button class="btn" id="nTest">🔔 Sinab ko‘rish (5 soniyadan keyin)</button>` : ''}`;
+}
+
+function bindNotify(f) {
+  if (!isNative()) return;
+  const before = `${notifyStatus.permission}|${notifyStatus.exact}`;
+  refreshStatus().then((st) => { if (screen === 'settings' && `${st.permission}|${st.exact}` !== before) render(); });
+  const on = (id, ev, fn) => { const el = $app.querySelector(id); if (el) el[ev] = fn; };
+  on('#askPerm', 'onclick', async () => { await requestPermission(); render(); });
+  on('#askExact', 'onclick', async () => { await openExactSetting(); render(); });
+  on('#nEnabled', 'onchange', (e) => { f.notify.enabled = e.target.checked; render(); });
+  on('#nStart', 'onchange', (e) => { f.notify.start = e.target.checked; });
+  on('#nBefore', 'onchange', (e) => { f.notify.before = Number(e.target.value); });
+  on('#nDaily', 'onchange', (e) => { f.notify.daily = e.target.value; render(); });
+  on('#nDailyOff', 'onclick', () => { f.notify.daily = ''; render(); });
+  on('#nTest', 'onclick', async () => {
+    if (notifyStatus.permission !== 'granted' && !(await requestPermission())) return toast('Avval bildirishnomaga ruxsat bering.');
+    await testNotification();
+    toast('5 soniyadan keyin sinov bildirishnomasi keladi. Ilovani yopib ko‘rishingiz mumkin.');
+  });
+}
+
 /* ---------------- Ulashish va qo'llab-quvvatlash ---------------- */
 async function shareApp() {
   const data = { title: 'Namoz va Qazo', text: SHARE_TEXT, url: APP_URL };
+  const NS = window.Capacitor?.Plugins?.Share;
+  if (isNative() && NS) {
+    try { await NS.share({ ...data, dialogTitle: 'Ulashish' }); return; } catch { return; }
+  }
   if (navigator.share) {
     try { await navigator.share(data); return; } catch (e) { if (e?.name === 'AbortError') return; }
   }
@@ -570,7 +634,7 @@ applyOfficial(state.settings);
 render();
 check();
 if (state.settings) {
-  refreshOfficial(state.settings).then((ch) => ch && screen === 'home' && render());
+  refreshOfficial(state.settings).then((ch) => { if (ch && screen === 'home') render(); reschedule(state, true); });
   autoLocate();
 }
 checkUpdate();
@@ -578,6 +642,7 @@ setInterval(checkUpdate, 30 * 60000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   checkUpdate();
+  reschedule(state);
   if (screen !== 'home') return;
   check();
   autoLocate();

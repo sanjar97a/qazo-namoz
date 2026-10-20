@@ -23,3 +23,10 @@ Har yangi versiyada uch joyda raqamni bir xil oshiring: `version.json`, `app.js`
 
 ## Play Market'ga
 Keyinchalik pwabuilder.com saytiga sahifa manzilini kiritib, Android paketini (.aab) yasash mumkin.
+
+## Android ilova (bildirishnomalar bilan)
+Har `main` ga push qilinganda GitHub Actions APK yasaydi va **Releases** ga qo'yadi:
+`https://github.com/sanjar97a/qazo-namoz/releases/latest/download/namoz-qazo.apk`
+
+Mahalliy: `npm install && npm run sync`, keyin `android/` ni Android Studio'da oching.
+`android/app/sideload.keystore` — faqat sinov APK'lari uchun. Play Market uchun alohida maxfiy kalit yarating.
