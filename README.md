@@ -5,10 +5,10 @@ Dunyo bo‘yicha ishlaydi: GPS bo‘yicha aniq joy uchun hisoblaydi, usul davlat
 Namoz vaqtlari + avtomatik qazo hisobi. Vaqti tugaguncha "O'qidim" bosilmagan namoz qazo hisobiga +1 bo'ladi. Hisob faqat siz "−" bosganda kamayadi. Ma'lumotlar telefonda (localStorage), internetsiz ishlaydi.
 
 ## GitHub Pages'ga joylash
-1. github.com → **New repository** → nomi `namoz-qazo` → Public → Create.
+1. github.com → **New repository** → nomi `qazo-namoz` → Public → Create.
 2. **Add file → Upload files** → shu papkadagi barcha fayllarni tashlang → Commit.
 3. **Settings → Pages** → Source: *Deploy from a branch*, Branch: `main` / `(root)` → Save.
-4. 1–2 daqiqadan keyin manzil: `https://sanjar97a.github.io/namoz-qazo/`
+4. 1–2 daqiqadan keyin manzil: `https://sanjar97a.github.io/qazo-namoz/`
 5. Telefonda Chrome'da oching → ⋮ → **Bosh ekranga qo'shish**.
 
 ## Yangilash
