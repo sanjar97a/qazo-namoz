@@ -18,6 +18,10 @@ const SUPPORT = {
 const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
+// ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
+export const APP_VERSION = '6';
+let newVersion = null;
+
 const KEY = 'namoz-qazo-state-v1';
 const EMPTY = { settings: null, qazo: { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, vitr: 0 }, log: {}, lastProcessed: null };
 const TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return ''; } })();
@@ -104,10 +108,38 @@ async function autoLocate() {
 
 /* ---------------- Ekranlar ---------------- */
 function render() {
-  if (!state.settings) return renderSetup();
-  if (screen === 'settings') return renderSettings();
-  if (screen === 'support') return renderSupport();
-  renderHome();
+  if (!state.settings) renderSetup();
+  else if (screen === 'settings') renderSettings();
+  else if (screen === 'support') renderSupport();
+  else renderHome();
+  if (newVersion) {
+    $app.insertAdjacentHTML('afterbegin', `<div class="update"><span class="grow">🔄 Yangi versiya mavjud</span><button id="doUpdate">Yangilash</button></div>`);
+    $app.querySelector('#doUpdate').onclick = applyUpdate;
+  }
+}
+
+/* ---------------- Yangilanish ---------------- */
+async function checkUpdate() {
+  if (!navigator.onLine) return;
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    const v = String((await r.json()).version || '');
+    if (v && v !== APP_VERSION && v !== newVersion) { newVersion = v; render(); }
+  } catch {}
+  try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch {}
+}
+
+// Faqat ilova fayllari keshi tozalanadi — sizning ma'lumotlaringiz (qazo, sozlamalar) saqlanib qoladi
+async function applyUpdate() {
+  const b = $app.querySelector('#doUpdate');
+  if (b) { b.disabled = true; b.textContent = '⏳'; }
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update().catch(() => {});
+    if (reg?.waiting) reg.waiting.postMessage('skipWaiting');
+  } catch {}
+  try { for (const k of await caches.keys()) await caches.delete(k); } catch {}
+  location.replace(location.pathname + '?v=' + newVersion);
 }
 
 function sourceText(t, s) {
@@ -385,6 +417,7 @@ function renderSettings() {
     <button class="btn primary" id="save" style="margin-top:20px">Saqlash</button>
 
     <div class="section">Ilova haqida</div>
+    <button class="btn" id="checkUpd">🔄 Yangilanishni tekshirish</button>
     <button class="btn" id="shareBtn">📤 Do‘stlarga ulashish</button>
     <button class="btn" id="supportBtn">🤲 Loyihani qo‘llab-quvvatlash</button>
 
@@ -392,7 +425,8 @@ function renderSettings() {
     <button class="btn" id="export">Zaxira faylni yuklab olish</button>
     <label>Zaxira faylini tanlang</label><input type="file" id="importFile" accept=".json,application/json" />
 
-    <button class="btn danger" id="reset" style="margin-top:24px">Profilni o‘chirish</button>`;
+    <button class="btn danger" id="reset" style="margin-top:24px">Profilni o‘chirish</button>
+    <div class="ver">Namoz va Qazo · versiya ${APP_VERSION}</div>`;
 
   bindInstall();
   bindInputs(f);
@@ -419,6 +453,10 @@ function renderSettings() {
 
   $app.querySelector('#back').onclick = () => { screen = 'home'; form = null; applyOfficial(state.settings); render(); };
   $app.querySelector('#shareBtn').onclick = shareApp;
+  $app.querySelector('#checkUpd').onclick = async () => {
+    await checkUpdate();
+    if (!newVersion) toast(navigator.onLine ? `Sizda eng yangi versiya (v${APP_VERSION})` : 'Tekshirish uchun internet kerak.');
+  };
   $app.querySelector('#supportBtn').onclick = () => { screen = 'support'; form = null; applyOfficial(state.settings); render(); };
   $app.querySelector('#save').onclick = () => {
     const settings = { ...s, name: f.name.trim(), dailyGoal: Number(f.dailyGoal) || 0, includeVitr: f.includeVitr,
@@ -527,6 +565,7 @@ function bindInputs(f) {
 }
 
 /* ---------------- Ishga tushirish ---------------- */
+if (location.search.includes('v=')) history.replaceState(null, '', location.pathname);
 applyOfficial(state.settings);
 render();
 check();
@@ -534,8 +573,12 @@ if (state.settings) {
   refreshOfficial(state.settings).then((ch) => ch && screen === 'home' && render());
   autoLocate();
 }
+checkUpdate();
+setInterval(checkUpdate, 30 * 60000);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden || screen !== 'home') return;
+  if (document.hidden) return;
+  checkUpdate();
+  if (screen !== 'home') return;
   check();
   autoLocate();
 });

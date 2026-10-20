@@ -12,7 +12,7 @@ Namoz vaqtlari + avtomatik qazo hisobi. Vaqti tugaguncha "O'qidim" bosilmagan na
 5. Telefonda Chrome'da oching → ⋮ → **Bosh ekranga qo'shish**.
 
 ## Yangilash
-Faylni o'zgartirgach, `sw.js` ichidagi `VERSION` ni oshiring (`namoz-qazo-v2`), aks holda telefon eski nusxani ko'rsatadi.
+Har yangi versiyada uch joyda raqamni bir xil oshiring: `version.json`, `app.js` dagi `APP_VERSION` va `sw.js` dagi `VERSION`. Telefonlarda “🔄 Yangi versiya mavjud — Yangilash” chiqadi.
 
 ## Fayllar
 - `index.html` — sahifa va dizayn

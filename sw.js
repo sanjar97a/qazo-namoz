@@ -1,9 +1,11 @@
 // Oflayn ishlash uchun: fayllarni keshda saqlaydi. Yangilash chiqarganda VERSION ni oshiring.
-const VERSION = 'namoz-qazo-v5';
+const VERSION = 'namoz-qazo-v6';
 const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'location.js', 'official.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
+self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -18,7 +20,8 @@ self.addEventListener('activate', (e) => {
 // kelmasa — keshdagi nusxa ochiladi, yangisi esa fonda keshga yoziladi.
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
-  const network = fetch(e.request).then((res) => {
+  if (e.request.url.includes('version.json')) return; // har doim internetdan
+  const network = fetch(e.request, { cache: 'no-cache' }).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); }
     return res;
   });
