@@ -13,6 +13,7 @@ import {
 } from './notify.js';
 import { QAZO as Q_QAZO, START as Q_START, fetchArabic, pick, quoteById, quranUrl } from './quotes.js';
 import { LEARN_DISCLAIMER, LEARN_SECTIONS } from './learn.js';
+import { diff as angDiff, distanceToKaaba, magDeclination, norm as angNorm, qiblaBearing, qiblaSunTimes, startCompass, sunPosition } from './qibla.js';
 import { MONTHS, WEEKDAYS, achievements, dayDone, monthGrid, recordDone, streak, summary, weekBars } from './stats.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
@@ -32,7 +33,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '17';
+export const APP_VERSION = '18';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -218,13 +219,14 @@ const TABS = [
   ['settings', 'Sozlama', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
 ];
 function tabbarHtml() {
-  const active = screen === 'support' ? 'settings' : screen === 'quote' ? 'home' : screen;
+  const active = screen === 'support' ? 'settings' : screen === 'quote' || screen === 'qibla' ? 'home' : screen;
   return `<nav class="tabbar"><div class="in">${TABS.map(([id, label, svg]) => `
     <button class="tab ${active === id ? 'on' : ''}" data-tab="${id}" aria-label="${label}">
       <span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>${label}
     </button>`).join('')}</div></nav>`;
 }
 function go(to) {
+  if (screen === 'qibla' && to !== 'qibla') stopQibla();
   if (screen === 'settings' && to !== 'settings') applyOfficial(state.settings);
   screen = to; form = null; render();
 }
@@ -243,6 +245,7 @@ function render() {
   else if (screen === 'calendar') renderCalendar();
   else if (screen === 'learn') renderLearn();
   else if (screen === 'quote') renderQuote();
+  else if (screen === 'qibla') renderQibla();
   else { renderHome(); $app.classList.add('has-hero'); }
   if (changed) $app.classList.add('fade');
   if (newVersion) {
@@ -383,7 +386,10 @@ function renderHome() {
           <h1>${esc(s.name) || 'Do‘stim'}</h1>
           <div class="sub">📍 ${esc(s.city)} · ${fmtDate(day)}</div>
         </div>
-        ${st.current ? `<div class="pill" style="background:rgba(255,255,255,.14);color:#fff">🔥 ${st.current} kun</div>` : ''}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <button class="qibla-btn" id="toQibla" aria-label="Qibla">🧭 Qibla</button>
+          ${st.current ? `<div class="pill" style="background:rgba(255,255,255,.14);color:#fff">🔥 ${st.current} kun</div>` : ''}
+        </div>
       </div>
       ${nx ? `<div class="next">
         <div class="grow">
@@ -431,6 +437,7 @@ function renderHome() {
   bindInstall();
   bindShareCard();
   $app.querySelector('#toLearn').onclick = () => go('learn');
+  $app.querySelector('#toQibla').onclick = () => go('qibla');
   $app.querySelector('#toQuote').onclick = () => openQuote(todayQuote().id);
   $app.querySelector('#toQazo').onclick = () => go('qazo');
   $app.querySelectorAll('[data-pray]').forEach((b) => {
@@ -548,6 +555,88 @@ function renderQazo() {
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
   $app.querySelectorAll('[data-plus]').forEach((b) => { b.onclick = () => doneAction(b.dataset.plus, -1); });
+}
+
+/* ---------------- Qibla ---------------- */
+let compassStop = null, heading = null, compassState = 'wait', aligned = false;
+function stopQibla() { compassStop?.(); compassStop = null; heading = null; compassState = 'wait'; aligned = false; }
+function renderQibla() {
+  const s = state.settings;
+  const lat = Number(s.lat), lng = Number(s.lng);
+  const q = qiblaBearing(lat, lng);
+  const dec = magDeclination(lat, lng);
+  const km = Math.round(distanceToKaaba(lat, lng));
+  const now = new Date();
+  const sun = sunPosition(now, lat, lng);
+  const times = qiblaSunTimes(lat, lng, now);
+  const sunRel = angDiff(q, sun.azimuth); // qibla quyoshdan qancha o'ngda
+  const dir = (d) => (d > 0 ? `${Math.abs(d).toFixed(0)}° o‘ngda` : `${Math.abs(d).toFixed(0)}° chapda`);
+
+  $app.innerHTML = `
+    <div class="row" style="margin:6px 0 4px"><button class="icon" id="qbBack" aria-label="Orqaga">←</button>
+      <div class="page-title" style="margin:0">Qibla</div></div>
+    <div class="sub">📍 ${esc(s.city)} · Ka’bagacha ${num(km)} km</div>
+
+    <div class="card compass-card">
+      <div class="compass-wrap">
+        <div class="phone-mark">▲</div>
+        <svg id="dial" class="dial" viewBox="0 0 240 240" style="transform:rotate(${heading == null ? 0 : -(heading + dec)}deg)">
+          <circle cx="120" cy="120" r="112" fill="var(--card2)" stroke="var(--line)" stroke-width="2"/>
+          ${Array.from({ length: 72 }, (_, i) => { const a = i * 5, long = a % 30 === 0;
+            return `<line x1="120" y1="${long ? 14 : 18}" x2="120" y2="26" stroke="var(--sub)" stroke-width="${long ? 2 : 1}" transform="rotate(${a} 120 120)"/>`; }).join('')}
+          ${[['N', 0, 'var(--red)'], ['E', 90, 'var(--sub)'], ['S', 180, 'var(--sub)'], ['W', 270, 'var(--sub)']].map(([t, a, c]) =>
+            `<text x="120" y="44" text-anchor="middle" font-size="15" font-weight="800" fill="${c}" transform="rotate(${a} 120 120)">${t}</text>`).join('')}
+          <g transform="rotate(${q} 120 120)">
+            <line x1="120" y1="120" x2="120" y2="52" stroke="var(--gold-bright)" stroke-width="4" stroke-linecap="round"/>
+            <rect x="106" y="30" width="28" height="28" rx="4" fill="#111" stroke="var(--gold-bright)" stroke-width="2"/>
+            <line x1="106" y1="38" x2="134" y2="38" stroke="var(--gold-bright)" stroke-width="3"/>
+          </g>
+          <circle cx="120" cy="120" r="6" fill="var(--accent)"/>
+        </svg>
+      </div>
+      <div id="qStatus" class="q-status">${compassState === 'nosensor' ? 'Bu qurilmada kompas topilmadi' : compassState === 'denied' ? 'Kompasga ruxsat berilmadi' : 'Kompas ishga tushmoqda…'}</div>
+      <div class="q-nums">
+        <div><b>${q.toFixed(1)}°</b><span>qibla (shimoldan)</span></div>
+        <div><b id="qHead">—</b><span>telefon yo‘nalishi</span></div>
+        <div><b>${dec >= 0 ? '+' : ''}${dec.toFixed(1)}°</b><span>magnit og‘ish</span></div>
+      </div>
+      <p class="hint" style="text-align:left">Telefonni <b>tekis, gorizontal</b> ushlang. Raqamlar sakrasa yoki noto‘g‘ri ko‘rinsa — telefonni havoda
+        <b>“8” shaklida</b> bir necha marta aylantiring va temir, magnit, kompyuter, mashina kabi narsalardan uzoqlashing.
+        Magnit og‘ish (haqiqiy va magnit shimol farqi) avtomatik hisobga olinadi.</p>
+    </div>
+
+    <div class="card">
+      <h2>☀️ Quyosh bo‘yicha tekshirish</h2>
+      <p class="sub" style="margin-top:-6px">Kompasga bog‘liq emas — eng ishonchli usul.</p>
+      ${times.length ? times.map((t) => `<div class="sun-row">
+        <b>${hm(t.at)}</b><span>${t.kind === 'face' ? 'quyosh aynan qibla tomonda bo‘ladi — <b>quyoshga yuzlansangiz, qiblaga qaragan bo‘lasiz</b>'
+          : 'quyosh qiblaning teskarisida bo‘ladi — <b>soyangiz qiblani ko‘rsatadi</b>'}</span></div>`).join('')
+        : '<p class="sub">Bugun quyosh qibla chizig‘idan o‘tmaydi — quyidagi joriy holatdan foydalaning.</p>'}
+      ${sun.altitude > 3 ? `<div class="finish" style="text-align:left">Hozir: qibla quyoshdan <b>${dir(sunRel)}</b>
+        (quyosh ${sun.azimuth.toFixed(0)}° da, balandligi ${sun.altitude.toFixed(0)}°).</div>`
+        : '<p class="hint">Hozir quyosh ufqdan past — kunduzi tekshiring.</p>'}
+    </div>
+    <p class="hint">Qibla yo‘nalishi Ka’ba koordinatalari (21.4225° N, 39.8262° E) bo‘yicha katta doira formulasi bilan hisoblanadi.
+      Magnit og‘ish — Jahon magnit modeli WMM2025 (NOAA), quyosh holati — NOAA astronomik algoritmi.</p>`;
+
+  $app.querySelector('#qbBack').onclick = () => go('home');
+  if (!compassStop && compassState === 'wait') {
+    compassStop = startCompass((h) => {
+      heading = h; compassState = 'ok';
+      const t = angNorm(h + dec);
+      const d = angDiff(q, t);
+      const dial = document.getElementById('dial');
+      if (!dial) return;
+      dial.style.transform = `rotate(${-t}deg)`;
+      document.getElementById('qHead').textContent = `${t.toFixed(0)}°`;
+      const st = document.getElementById('qStatus');
+      const ok = Math.abs(d) <= 3;
+      st.className = `q-status ${ok ? 'ok' : ''}`;
+      st.innerHTML = ok ? '✅ Qibla tomonga qaradingiz' : `${d > 0 ? '↻ O‘ngga' : '↺ Chapga'} buriling: <b>${Math.abs(d).toFixed(0)}°</b>`;
+      if (ok && !aligned) { aligned = true; try { navigator.vibrate?.(60); } catch {} }
+      if (Math.abs(d) > 6) aligned = false;
+    }, (why) => { compassState = why; if (screen === 'qibla') render(); });
+  }
 }
 
 /* ---------------- Oyat / hadis sahifasi ---------------- */
@@ -1161,6 +1250,7 @@ function onBack() {
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
   if (screen === 'support') return go('settings');
   if (screen === 'quote') return go(quoteFrom);
+  if (screen === 'qibla') return go('home');
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }

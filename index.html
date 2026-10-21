@@ -251,6 +251,21 @@
     .steps li { margin-bottom: 6px; }
     @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    /* Qibla */
+    .qibla-btn { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: #fff; padding: 8px 12px; font-size: 14px; border-radius: 12px; }
+    .compass-card { text-align: center; }
+    .compass-wrap { position: relative; width: min(78vw, 280px); margin: 8px auto 4px; }
+    .dial { width: 100%; height: auto; display: block; transition: transform .12s linear; }
+    .phone-mark { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); color: var(--accent); font-size: 22px; z-index: 1; }
+    .q-status { margin-top: 10px; font-size: 18px; font-weight: 700; min-height: 26px; }
+    .q-status.ok { color: var(--accent); }
+    .q-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    .q-nums div { background: var(--card2); border-radius: 12px; padding: 8px 4px; }
+    .q-nums b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .q-nums span { font-size: 11px; color: var(--sub); }
+    .sun-row { display: flex; gap: 12px; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+    .sun-row:last-of-type { border-bottom: 0; }
+    .sun-row > b { font-size: 20px; color: var(--gold); font-variant-numeric: tabular-nums; }
     /* Kun oyati va oyat sahifasi */
     .quote-card { width: 100%; text-align: left; margin-top: 16px; padding: 16px 18px; border-radius: 20px; font-weight: 500;
       background: linear-gradient(150deg, var(--hero1), var(--hero2)); color: #fff; border: 0; box-shadow: var(--shadow); }

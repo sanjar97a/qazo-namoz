@@ -106,3 +106,20 @@ test('Xato qazoni tuzatish', () => {
   const again = processMissed(s2, at(2026, 10, 20, 9));
   assert.equal(again.state.log['2026-10-19'].asr, 'prayed'); // qayta qazoga tushmaydi
 });
+
+import { qiblaBearing, sunPosition, distanceToKaaba } from '../qibla.js';
+import { declination } from '../geomag.js';
+
+test('Qibla yo‘nalishi va magnit og‘ish', () => {
+  // Taniqli ma'lumotnoma qiymatlari (katta doira bo'yicha)
+  assert.ok(Math.abs(qiblaBearing(40.7128, -74.006) - 58.48) < 0.05);  // Nyu-York
+  assert.ok(Math.abs(qiblaBearing(51.5074, -0.1278) - 118.99) < 0.05); // London
+  assert.ok(Math.abs(qiblaBearing(40.9983, 71.6726) - 243.67) < 0.05); // Namangan
+  assert.ok(distanceToKaaba(21.4225, 39.8262) < 0.1);
+  // Namanganda magnit og'ish taxminan +5°
+  const d = declination(40.9983, 71.6726, new Date('2026-10-21'));
+  assert.ok(d > 4 && d < 7);
+  // Quyosh: Namanganda peshin paytida (taxminan 12:00) azimut ~180°
+  const noon = sunPosition(new Date('2026-10-21T06:58:00Z'), 40.9983, 71.6726);
+  assert.ok(Math.abs(noon.azimuth - 180) < 2 && noon.altitude > 30);
+});
