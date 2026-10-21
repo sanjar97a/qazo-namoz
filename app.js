@@ -11,6 +11,7 @@ import { applyOfficial, refreshOfficial } from './official.js';
 import {
   APK_URL, DEFAULT_NOTIFY, isNative, notifyStatus, openExactSetting, refreshStatus, requestPermission, reschedule, testNotification,
 } from './notify.js';
+import { LEARN_DISCLAIMER, LEARN_SECTIONS } from './learn.js';
 import { MONTHS, WEEKDAYS, achievements, dayDone, monthGrid, recordDone, streak, summary, weekBars } from './stats.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
@@ -30,7 +31,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '13';
+export const APP_VERSION = '14';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -215,13 +216,15 @@ const TABS = [
   ['settings', 'Sozlamalar', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
 ];
 function tabbarHtml() {
-  const active = screen === 'support' ? 'settings' : screen;
+  const active = screen === 'support' ? 'settings' : screen === 'learn' ? learnFrom : screen;
   return `<nav class="tabbar"><div class="in">${TABS.map(([id, label, svg]) => `
     <button class="tab ${active === id ? 'on' : ''}" data-tab="${id}" aria-label="${label}">
       <span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>${label}
     </button>`).join('')}</div></nav>`;
 }
+let learnFrom = 'home';
 function go(to) {
+  if (to === 'learn' && screen !== 'learn') learnFrom = screen;
   if (screen === 'settings' && to !== 'settings') applyOfficial(state.settings);
   screen = to; form = null; render();
 }
@@ -238,6 +241,7 @@ function render() {
   else if (screen === 'qazo') renderQazo();
   else if (screen === 'stats') renderStats();
   else if (screen === 'calendar') renderCalendar();
+  else if (screen === 'learn') renderLearn();
   else { renderHome(); $app.classList.add('has-hero'); }
   if (changed) $app.classList.add('fade');
   if (newVersion) {
@@ -410,10 +414,17 @@ function renderHome() {
       <button class="btn primary" id="toQazo">Qazo ado qilish →</button>
     </div>
 
+    <button class="learn-card" id="toLearn">
+      <span class="lc-i">📚</span>
+      <span class="grow"><b>Namoz va qazo qo‘llanmasi</b><br><span class="sub">O‘qish tartibi, qazo niyati, zikrlar — rasmiy manbalar asosida</span></span>
+      <span class="lc-a">›</span>
+    </button>
+
     ${shareCardHtml()}`;
 
   bindInstall();
   bindShareCard();
+  $app.querySelector('#toLearn').onclick = () => go('learn');
   $app.querySelector('#toQazo').onclick = () => go('qazo');
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
@@ -514,6 +525,11 @@ function renderQazo() {
 
     <div class="section">Namozlar bo‘yicha</div>
     ${rows}
+    <button class="learn-card" id="toLearnQ" style="margin-top:16px">
+      <span class="lc-i">💭</span>
+      <span class="grow"><b>Qazo qanday o‘qiladi va niyat qilinadi?</b><br><span class="sub">Qo‘llanmani ochish</span></span>
+      <span class="lc-a">›</span>
+    </button>
     <p class="hint"><b>✓ Ado qildim</b> — bitta qazo o‘qildi, hisobdan ayriladi va bugungi natijangizga yoziladi.<br>
       <b>＋</b> — bugun xato bosgan bo‘lsangiz bekor qiladi, aks holda qazo hisobiga bitta qo‘shadi.</p>`;
 
@@ -521,9 +537,30 @@ function renderQazo() {
   $app.querySelector('#gMinus').onclick = () => setGoal((Number(s.dailyGoal) || 0) - 1);
   $app.querySelector('#gPlus').onclick = () => setGoal((Number(s.dailyGoal) || 0) + 1);
   $app.querySelectorAll('[data-ado]').forEach((b) => { b.onclick = () => doneAction(b.dataset.ado, 1); });
+  $app.querySelector('#toLearnQ').onclick = () => { learnOpen = 'qazo'; go('learn'); };
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
   $app.querySelectorAll('[data-plus]').forEach((b) => { b.onclick = () => doneAction(b.dataset.plus, -1); });
+}
+
+/* ---------------- Bilim (qo'llanma) ---------------- */
+let learnOpen = null;
+function renderLearn() {
+  $app.innerHTML = `
+    <div class="row" style="margin:6px 0 4px"><button class="icon" id="lback" aria-label="Orqaga">←</button>
+      <div class="page-title" style="margin:0">Qo‘llanma</div></div>
+    <p class="sub" style="line-height:1.55">Namoz o‘qish tartibi va qazo namozlari — O‘zbekiston musulmonlari idorasi va islom.uz materiallari asosida.</p>
+    ${LEARN_SECTIONS.map((x) => `
+      <details class="lsec" ${learnOpen === x.id ? 'open' : ''} data-sec="${x.id}">
+        <summary><span class="ls-i">${x.icon}</span><span class="grow">${x.title}</span><span class="ls-a">⌄</span></summary>
+        <div class="lbody">${x.html}</div>
+      </details>`).join('')}
+    <div class="note" style="padding-right:14px;margin-top:20px">ℹ️ ${LEARN_DISCLAIMER}</div>`;
+  $app.querySelector('#lback').onclick = () => go(learnFrom);
+  $app.querySelectorAll('details.lsec').forEach((d) => {
+    d.addEventListener('toggle', () => { if (d.open) { learnOpen = d.dataset.sec; $app.querySelectorAll('details.lsec').forEach((o) => { if (o !== d) o.open = false; }); } });
+  });
+  if (learnOpen) setTimeout(() => $app.querySelector(`[data-sec="${learnOpen}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 50);
 }
 
 /* ---------------- Statistika ---------------- */
@@ -861,6 +898,7 @@ function renderSettings() {
     <div class="section">Ilova haqida</div>
     ${IS_PLAY ? '' : '<button class="btn" id="checkUpd">🔄 Yangilanishni tekshirish</button>'}
     <button class="btn" id="shareBtn">📤 Do‘stlarga ulashish</button>
+    <button class="btn" id="learnBtn">📚 Namoz va qazo qo‘llanmasi</button>
     <button class="btn" id="supportBtn">🤲 Loyihani qo‘llab-quvvatlash</button>
     <a class="btn" href="${APP_URL}privacy.html" target="_blank" rel="noopener">🔒 Maxfiylik siyosati</a>
 
@@ -903,6 +941,7 @@ function renderSettings() {
     if (!newVersion) toast(navigator.onLine ? `Sizda eng yangi versiya (v${APP_VERSION})` : 'Tekshirish uchun internet kerak.');
   };
   $app.querySelector('#supportBtn').onclick = () => go('support');
+  $app.querySelector('#learnBtn').onclick = () => go('learn');
   $app.querySelector('#save').onclick = () => {
     const settings = { ...s, name: f.name.trim(), dailyGoal: Number(f.dailyGoal) || 0, includeVitr: f.includeVitr,
       city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode, method: f.method, methodAuto: f.methodAuto,
@@ -1065,6 +1104,7 @@ function onBack() {
   if (sheet) return sheet.remove();
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
   if (screen === 'support') return go('settings');
+  if (screen === 'learn') return go(learnFrom);
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }

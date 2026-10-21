@@ -208,6 +208,7 @@
     .note { position: relative; background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 34px 12px 14px;
       margin-top: 16px; font-size: 13px; line-height: 1.5; color: var(--sub); }
     .note b { color: var(--text); }
+    .note a { color: var(--accent); }
     .note .x { position: absolute; top: 4px; right: 4px; border: 0; background: none; padding: 6px 10px; color: var(--sub); font-size: 18px; }
     .install { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); margin-top: 14px; }
     .loc { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 12px; padding: 12px; margin-top: 10px; line-height: 1.5; }
@@ -250,6 +251,28 @@
     .steps li { margin-bottom: 6px; }
     @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    /* Qo'llanma */
+    .learn-card { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; margin-top: 16px; padding: 14px;
+      background: linear-gradient(135deg, var(--accent-soft), var(--gold-soft)); border: 1px solid var(--line); border-radius: 20px; font-weight: 500; }
+    .learn-card b { font-size: 15px; }
+    .lc-i { font-size: 28px; } .lc-a { font-size: 26px; color: var(--accent); }
+    .lsec { background: var(--card); border: 1px solid var(--line); border-radius: 18px; margin-top: 10px; box-shadow: var(--shadow); overflow: hidden; }
+    .lsec summary { list-style: none; display: flex; align-items: center; gap: 12px; padding: 14px; font-weight: 700; cursor: pointer; }
+    .lsec summary::-webkit-details-marker { display: none; }
+    .ls-i { font-size: 22px; } .ls-a { color: var(--sub); transition: transform .2s; }
+    .lsec[open] .ls-a { transform: rotate(180deg); }
+    .lsec[open] summary { border-bottom: 1px solid var(--line); }
+    .lbody { padding: 4px 16px 16px; font-size: 15px; line-height: 1.6; }
+    .lbody a { color: var(--accent); }
+    .lsteps { padding-left: 20px; margin: 10px 0; } .lsteps li { margin-bottom: 8px; }
+    .lnote { background: var(--card2); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+    .ltable { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
+    .ltable th, .ltable td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: center; }
+    .ltable th { color: var(--sub); font-size: 12px; font-weight: 600; } .ltable td:first-child { text-align: left; }
+    .zikr { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+    .zikr .zt { font-style: italic; margin-top: 4px; }
+    .zikr .zn { font-size: 13px; color: var(--sub); margin-top: 6px; }
+    .lsrc { font-size: 12px; color: var(--sub); margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
     @media (max-width: 370px) {
       #app { padding-left: 12px; padding-right: 12px; }
       .hero { margin: 0 -12px; padding-left: 16px; padding-right: 16px; }
