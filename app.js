@@ -9,8 +9,9 @@ import {
 } from './location.js';
 import { applyOfficial, refreshOfficial } from './official.js';
 import {
-  APK_URL, DEFAULT_NOTIFY, isNative, notifyStatus, openExactSetting, refreshStatus, requestPermission, reschedule, testNotification,
+  APK_URL, DEFAULT_NOTIFY, isNative, notifyStatus, onNotificationTap, openExactSetting, refreshStatus, requestPermission, reschedule, testNotification,
 } from './notify.js';
+import { QAZO as Q_QAZO, START as Q_START, fetchArabic, pick, quoteById, quranUrl } from './quotes.js';
 import { LEARN_DISCLAIMER, LEARN_SECTIONS } from './learn.js';
 import { MONTHS, WEEKDAYS, achievements, dayDone, monthGrid, recordDone, streak, summary, weekBars } from './stats.js';
 
@@ -31,7 +32,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '16';
+export const APP_VERSION = '17';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -217,7 +218,7 @@ const TABS = [
   ['settings', 'Sozlama', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
 ];
 function tabbarHtml() {
-  const active = screen === 'support' ? 'settings' : screen;
+  const active = screen === 'support' ? 'settings' : screen === 'quote' ? 'home' : screen;
   return `<nav class="tabbar"><div class="in">${TABS.map(([id, label, svg]) => `
     <button class="tab ${active === id ? 'on' : ''}" data-tab="${id}" aria-label="${label}">
       <span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>${label}
@@ -241,6 +242,7 @@ function render() {
   else if (screen === 'stats') renderStats();
   else if (screen === 'calendar') renderCalendar();
   else if (screen === 'learn') renderLearn();
+  else if (screen === 'quote') renderQuote();
   else { renderHome(); $app.classList.add('has-hero'); }
   if (changed) $app.classList.add('fade');
   if (newVersion) {
@@ -413,6 +415,11 @@ function renderHome() {
       <button class="btn primary" id="toQazo">Qazo ado qilish →</button>
     </div>
 
+    ${(() => { const dq = todayQuote(); return `<button class="quote-card" id="toQuote">
+      <div class="qc-l">${dq.ayah ? '📖 Kun oyati' : '🌿 Kun hadisi'}</div>
+      <div class="qc-t">«${esc(dq.text)}»</div>
+      <div class="qc-r">${esc(dq.ref)} · <span>to‘liq o‘qish ›</span></div></button>`; })()}
+
     <button class="learn-card" id="toLearn">
       <span class="lc-i">📚</span>
       <span class="grow"><b>Namoz va qazo qo‘llanmasi</b><br><span class="sub">O‘qish tartibi, qazo niyati, zikrlar — rasmiy manbalar asosida</span></span>
@@ -424,6 +431,7 @@ function renderHome() {
   bindInstall();
   bindShareCard();
   $app.querySelector('#toLearn').onclick = () => go('learn');
+  $app.querySelector('#toQuote').onclick = () => openQuote(todayQuote().id);
   $app.querySelector('#toQazo').onclick = () => go('qazo');
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
@@ -540,6 +548,57 @@ function renderQazo() {
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
   $app.querySelectorAll('[data-plus]').forEach((b) => { b.onclick = () => doneAction(b.dataset.plus, -1); });
+}
+
+/* ---------------- Oyat / hadis sahifasi ---------------- */
+let quoteId = null, quoteFrom = 'home';
+const arabicCache = {};
+function todayQuote() {
+  const d = new Date();
+  const dayNo = Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12).getTime() / 86400000);
+  return pick([...Q_START, ...Q_QAZO], dayNo);
+}
+function openQuote(id) {
+  if (!id || !quoteById(id) || !state.settings) return;
+  quoteId = id;
+  if (screen !== 'quote') quoteFrom = screen === 'support' || screen === 'learn' ? 'home' : screen;
+  screen = 'quote'; form = null;
+  render();
+}
+function renderQuote() {
+  const q = quoteById(quoteId);
+  if (!q) { screen = 'home'; return renderHome(); }
+  const ar = q.ayah ? arabicCache[q.id] : null;
+  $app.innerHTML = `
+    <div class="row" style="margin:6px 0 10px"><button class="icon" id="qback" aria-label="Orqaga">←</button>
+      <div class="page-title" style="margin:0">${q.ayah ? 'Qur’oni karim' : 'Hadisi sharif'}</div></div>
+    <div class="card quote-full" style="margin-top:0">
+      ${q.ayah ? `<div class="arabic" dir="rtl" lang="ar">${ar === undefined ? '<span class="sub">Arabcha matn yuklanmoqda…</span>'
+        : ar === 'err' ? '<span class="sub" dir="ltr">Arabcha matnni ko‘rish uchun bir marta internetga ulaning.</span>'
+        : ar.map((v) => `${esc(v.t)} <span class="ayn">﴿${v.n}﴾</span>`).join(' ')}</div>` : ''}
+      <div class="qf-label">Ma’nosi</div>
+      <div class="qf-text">«${esc(q.text)}»</div>
+      <div class="qf-ref">${esc(q.ref)}</div>
+    </div>
+    ${q.ayah ? `<a class="btn primary" href="${quranUrl(q.ayah)}" target="_blank" rel="noopener">📖 Oyatni to‘liq tarjimasi bilan o‘qish (Quran.com)</a>` : ''}
+    ${q.hadith ? q.hadith.map((h) => `<a class="btn" href="${h.url}" target="_blank" rel="noopener">📚 ${esc(h.name)} — to‘liq matn (sunnah.com)</a>`).join('') : ''}
+    <p class="hint">Yuqoridagi matn — ${q.ayah ? 'oyat' : 'hadis'} ma’nosining qisqa bayoni, so‘zma-so‘z tarjima emas.
+      ${q.ayah ? 'Arabcha asl matn Quran.com ochiq bazasidan olingan.' : ''} To‘liq tarjima va sharh uchun yuqoridagi manbaga qarang.</p>
+    <button class="btn" id="qShare">📤 Ulashish</button>`;
+  $app.querySelector('#qback').onclick = () => go(quoteFrom);
+  $app.querySelector('#qShare').onclick = async () => {
+    const text = `«${q.text}» (${q.ref})\n\n${SHARE_URL}`;
+    const NS = window.Capacitor?.Plugins?.Share;
+    try {
+      if (isNative() && NS) await NS.share({ text, dialogTitle: 'Ulashish' });
+      else if (navigator.share) await navigator.share({ text });
+      else window.open(`https://t.me/share/url?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(`«${q.text}» (${q.ref})`)}`, '_blank');
+    } catch {}
+  };
+  if (q.ayah && arabicCache[q.id] === undefined) {
+    fetchArabic(q.ayah).then((v) => { arabicCache[q.id] = v; }).catch(() => { arabicCache[q.id] = 'err'; })
+      .finally(() => { if (screen === 'quote' && quoteId === q.id) render(); });
+  }
 }
 
 /* ---------------- Bilim (qo'llanma) ---------------- */
@@ -1101,10 +1160,12 @@ function onBack() {
   if (sheet) return sheet.remove();
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
   if (screen === 'support') return go('settings');
+  if (screen === 'quote') return go(quoteFrom);
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }
 try { if (isNative()) window.Capacitor?.Plugins?.App?.addListener('backButton', onBack); } catch {}
+onNotificationTap((id) => openQuote(id));
 
 /* ---------------- Ishga tushirish ---------------- */
 if (location.search.includes('v=')) history.replaceState(null, '', location.pathname);

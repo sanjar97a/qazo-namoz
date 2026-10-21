@@ -68,22 +68,22 @@ export function buildSchedule(state, now = new Date()) {
     PRAYERS.slice(0, 5).forEach((p, j) => {
       const w = windows[p];
       if (n.start && w.start > now) {
-        const q = fmtQuote(pick(START, dayNo * 5 + j, p));
-        list.push({ id: i * 100 + j * 2 + 1, at: w.start, title: `🕌 ${NAMES[p]} vaqti kirdi · ${fmtTime(w.start)}–${fmtTime(w.end)}`,
+        const qo = pick(START, dayNo * 5 + j, p), q = fmtQuote(qo);
+        list.push({ id: i * 100 + j * 2 + 1, at: w.start, quote: qo.id, title: `🕌 ${NAMES[p]} vaqti kirdi · ${fmtTime(w.start)}–${fmtTime(w.end)}`,
           body: q, largeBody: `${q}\n\nO‘qigach, ilovada “O‘qidim” deb belgilang.` });
       }
       const warn = new Date(w.end.getTime() - Number(n.before) * 60000);
       if (Number(n.before) > 0 && warn > now && warn > w.start && state.log[key]?.[p] !== 'prayed') {
-        const q = fmtQuote(pick(WARN, dayNo * 5 + j, p));
-        list.push({ id: i * 100 + j * 2 + 2, at: warn, title: `⏳ ${NAMES[p]}: ${n.before} daqiqa qoldi (${fmtTime(w.end)} gacha)`,
+        const qo = pick(WARN, dayNo * 5 + j, p), q = fmtQuote(qo);
+        list.push({ id: i * 100 + j * 2 + 2, at: warn, quote: qo.id, title: `⏳ ${NAMES[p]}: ${n.before} daqiqa qoldi (${fmtTime(w.end)} gacha)`,
           body: q, largeBody: `${q}\n\nO‘qilmasa, qazo hisobiga qo‘shiladi.` });
       }
     });
     if (n.daily) {
       const at = atTime(day, n.daily);
       if (at > now) {
-        const q = fmtQuote(pick(QAZO, dayNo));
-        list.push({ id: i * 100 + 50, at, title: `📿 Qazo vaqti · bugungi maqsad ${s.dailyGoal || 0} ta`,
+        const qo = pick(QAZO, dayNo), q = fmtQuote(qo);
+        list.push({ id: i * 100 + 50, at, quote: qo.id, title: `📿 Qazo vaqti · bugungi maqsad ${s.dailyGoal || 0} ta`,
           body: q, largeBody: `${q}\n\nJami qoldi: ${totalQazo(state)} ta. Bugun ${s.dailyGoal || 0} tasini ado qilaylik.` });
       }
     }
@@ -108,16 +108,22 @@ export async function reschedule(state, force = false) {
   try {
     await LN().schedule({
       notifications: list.map((x) => ({
-        id: x.id, title: x.title, body: x.body, largeBody: x.largeBody, channelId: CHANNEL, smallIcon: 'ic_stat_notify', iconColor: '#4C8DF6',
+        id: x.id, title: x.title, body: x.body, largeBody: x.largeBody, channelId: CHANNEL, extra: { quote: x.quote || null }, smallIcon: 'ic_stat_notify', iconColor: '#4C8DF6',
         schedule: { at: x.at, allowWhileIdle: true },
       })),
     });
   } catch (e) { console.warn('schedule', e); }
 }
 
+// Bildirishnoma bosilganda: ilova ochiladi va unga biriktirilgan oyat/hadis ko'rsatiladi
+export function onNotificationTap(handler) {
+  if (!isNative()) return;
+  try { LN().addListener('localNotificationActionPerformed', (e) => handler(e?.notification?.extra?.quote || null)); } catch {}
+}
+
 export async function testNotification() {
   await ensureChannel();
-  const q = fmtQuote(pick(START, Date.now() / 1000));
-  await LN().schedule({ notifications: [{ id: 9998, title: '🕌 Sinov bildirishnomasi', body: q, largeBody: `${q}\n\nBildirishnomalar ishlayapti.`,
+  const qo = pick(START, Date.now() / 1000), q = fmtQuote(qo);
+  await LN().schedule({ notifications: [{ id: 9998, title: '🕌 Sinov bildirishnomasi', body: q, largeBody: `${q}\n\nBosing — to‘liq matni ochiladi.`, extra: { quote: qo.id },
     channelId: CHANNEL, smallIcon: 'ic_stat_notify', iconColor: '#4C8DF6', schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true } }] });
 }
