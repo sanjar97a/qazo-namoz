@@ -243,6 +243,11 @@
       padding: 12px 18px; border-radius: 14px; max-width: 90%; white-space: pre-line; z-index: 9; font-weight: 600; box-shadow: 0 8px 24px rgba(0,0,0,.25);
       animation: pop .25s ease-out; }
     .fade { animation: fade .25s ease-out; }
+    .sheet-bg { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+    .sheet { width: 100%; max-width: 560px; background: var(--card); color: var(--text); border-radius: 24px 24px 0 0;
+      padding: 20px 18px calc(var(--bottom) + 18px); animation: fade .25s ease-out; }
+    .steps { margin: 12px 0 0; padding-left: 20px; line-height: 1.6; font-size: 15px; }
+    .steps li { margin-bottom: 6px; }
     @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

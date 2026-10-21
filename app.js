@@ -23,7 +23,7 @@ const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '10';
+export const APP_VERSION = '11';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -120,8 +120,9 @@ function installHtml(force) {
       <div class="ic-text">Android ilovada namoz vaqti kirganda va tugashidan oldin <b>bildirishnoma</b> keladi, internetsiz ishlaydi.</div>
       <a class="btn install" href="${APK_URL}" id="apkLink">⬇️ Android ilovani yuklab olish</a>
       ${pwaBtn}
-      <div class="ic-hint">Yuklangan faylni oching → “O‘rnatish”. Birinchi marta “Noma’lum manbalarga ruxsat” so‘ralsa, ruxsat bering.
-        ${isStandalone() ? '' : 'Telegram ichida ochilgan bo‘lsa, avval sahifani Chrome’da oching.'}</div>
+      <div class="ic-hint">Yuklash 100% bo‘lib qotib qolsa — telefonda <b>Fayllar → Yuklanmalar</b> ga kirib, <b>namoz-qazo.apk</b> ni bosing → “O‘rnatish”.
+        Birinchi marta “Noma’lum manbalarga ruxsat” so‘ralsa, ruxsat bering.
+        ${isStandalone() ? '' : 'Telegram ichida ochilgan bo‘lsa, sahifani Chrome’da oching — yuklash ishonchliroq.'}</div>
     </div>`;
   }
   if (isStandalone()) return '';
@@ -146,7 +147,7 @@ function bindInstall() {
   const x = $app.querySelector('#hideInstall');
   if (x) x.onclick = () => { try { localStorage.setItem(INSTALL_HIDE_KEY, String(Date.now() + 3 * 86400000)); } catch {} render(); };
   const a = $app.querySelector('#apkLink');
-  if (a) a.onclick = () => toast('Yuklab olinmoqda… Tugagach, faylni oching va “O‘rnatish”ni bosing.', 7000);
+  if (a) a.onclick = () => toast('Yuklab olinmoqda… Tugagach: Fayllar → Yuklanmalar → namoz-qazo.apk → “O‘rnatish”.', 9000);
 }
 
 /* ---------------- Qazo tekshiruvi ---------------- */
@@ -223,6 +224,27 @@ function render() {
 }
 
 /* ---------------- Yangilanish ---------------- */
+// Android ilovada: yangi APK'ni qanday o'rnatish bo'yicha qisqa yo'riqnoma, keyin yuklab olish
+function showApkSheet() {
+  document.querySelector('.sheet-bg')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="sheet-bg"><div class="sheet">
+      <div class="ic-title">🔄 Yangi versiya ${esc(newVersion || '')}</div>
+      <ol class="steps">
+        <li><b>Yuklab olish</b> tugmasini bosing — brauzer ochiladi.</li>
+        <li>Yuklash 100% bo‘lgach, ochilmasa ham kutmang: telefonda <b>Fayllar → Yuklanmalar</b> (Downloads) ga kiring.</li>
+        <li><b>namoz-qazo.apk</b> ni bosing → <b>Yangilash / O‘rnatish</b>.</li>
+      </ol>
+      <p class="hint">Ma’lumotlaringiz (qazo hisobi, sozlamalar) o‘chmaydi. Bir xil nomli eski fayl bo‘lsa, eng yangisini tanlang.</p>
+      <a class="btn install" href="${APK_URL}" id="sheetGo">⬇️ Yuklab olish</a>
+      <button class="btn" id="sheetClose">Keyinroq</button>
+    </div></div>`);
+  const bg = document.querySelector('.sheet-bg');
+  bg.querySelector('#sheetClose').onclick = () => bg.remove();
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  bg.querySelector('#sheetGo').onclick = () => setTimeout(() => bg.remove(), 500);
+}
+
 async function checkUpdate() {
   if (!navigator.onLine) return;
   try {
@@ -235,7 +257,7 @@ async function checkUpdate() {
 
 // Faqat ilova fayllari keshi tozalanadi — sizning ma'lumotlaringiz (qazo, sozlamalar) saqlanib qoladi
 async function applyUpdate() {
-  if (isNative()) { location.href = APK_URL; return; } // yangi APK yuklab olinadi va ustidan o'rnatiladi
+  if (isNative()) return showApkSheet(); // yangi APK yuklab olinadi va ustidan o'rnatiladi
   const b = $app.querySelector('#doUpdate');
   if (b) { b.disabled = true; b.textContent = '⏳'; }
   try {
