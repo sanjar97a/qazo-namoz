@@ -31,7 +31,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '15';
+export const APP_VERSION = '16';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
