@@ -23,7 +23,7 @@ const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '11';
+export const APP_VERSION = '12';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -790,6 +790,7 @@ function renderSettings() {
     <button class="btn" id="checkUpd">🔄 Yangilanishni tekshirish</button>
     <button class="btn" id="shareBtn">📤 Do‘stlarga ulashish</button>
     <button class="btn" id="supportBtn">🤲 Loyihani qo‘llab-quvvatlash</button>
+    <a class="btn" href="${APP_URL}privacy.html" target="_blank" rel="noopener">🔒 Maxfiylik siyosati</a>
 
     <div class="section">Zaxira</div>
     <button class="btn" id="export">Zaxira faylni yuklab olish</button>

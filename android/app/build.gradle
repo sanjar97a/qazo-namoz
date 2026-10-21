@@ -19,6 +19,13 @@ android {
     // Sinov APK'lari uchun doimiy kalit: har yangi APK eskisining ustiga o'rnatiladi.
     // Play Market uchun alohida, maxfiy kalit ishlatiladi (bu kalit emas).
     signingConfigs {
+        // Play Market uchun yuklash kaliti (CI'da shifrdan ochiladi, repoda faqat .enc holida turadi)
+        play {
+            storeFile file('upload.keystore')
+            storePassword System.getenv('ANDROID_UPLOAD_PASSWORD') ?: ''
+            keyAlias 'upload'
+            keyPassword System.getenv('ANDROID_UPLOAD_PASSWORD') ?: ''
+        }
         sideload {
             storeFile file('sideload.keystore')
             storePassword 'namozqazo'
@@ -31,7 +38,8 @@ android {
             signingConfig signingConfigs.sideload
         }
         release {
-            signingConfig signingConfigs.sideload
+            // -PsignWith=play bo'lsa Play kaliti bilan (.aab), aks holda sinov APK kaliti bilan
+            signingConfig project.findProperty('signWith') == 'play' ? signingConfigs.play : signingConfigs.sideload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

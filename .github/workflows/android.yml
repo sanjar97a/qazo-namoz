@@ -32,6 +32,15 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon -PappVersionCode=${{ steps.ver.outputs.v }} -PappVersionName=1.${{ steps.ver.outputs.v }}
       - run: cp android/app/build/outputs/apk/release/app-release.apk namoz-qazo.apk
+      - name: Play Market uchun .aab (ANDROID_UPLOAD_PASSWORD secret bo'lsa)
+        env:
+          ANDROID_UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_UPLOAD_PASSWORD" ]; then echo "Secret yo'q — .aab yasalmadi"; exit 0; fi
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/upload.keystore.enc -out android/app/upload.keystore -pass env:ANDROID_UPLOAD_PASSWORD
+          cd android && ./gradlew bundleRelease --no-daemon -PsignWith=play -PappVersionCode=${{ steps.ver.outputs.v }} -PappVersionName=1.${{ steps.ver.outputs.v }}
+          cp app/build/outputs/bundle/release/app-release.aab ../namoz-qazo-play.aab
+          rm -f app/upload.keystore
       - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -41,5 +50,8 @@ jobs:
             Android ilova (APK). Telefonda faylni ochib o'rnating.
             Birinchi marta "Noma'lum manbalardan o'rnatish"ga ruxsat so'raladi.
             Yangi versiya eskisining ustiga o'rnatiladi — ma'lumotlar o'chmaydi.
-          files: namoz-qazo.apk
+          files: |
+            namoz-qazo.apk
+            namoz-qazo-play.aab
+          fail_on_unmatched_files: false
           make_latest: true
