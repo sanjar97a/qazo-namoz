@@ -251,6 +251,26 @@
     .steps li { margin-bottom: 6px; }
     @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    /* Qazo: kalkulyator, progress, oynacha */
+    .calc { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 6px; align-items: center; padding: 10px 12px; border-radius: 12px; font-size: 14px; }
+    .calc:nth-child(even) { background: var(--card2); }
+    .calc.on { outline: 2px solid var(--accent); background: var(--accent-soft); }
+    .calc b:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .pp { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 14px; }
+    .pp-n { width: 92px; flex: none; } .pp b { width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+    .sheet-l { font-size: 13px; font-weight: 700; color: var(--sub); margin: 16px 0 2px; }
+    .chipbtn { min-width: 52px; padding: 10px 14px; font-size: 16px; border-radius: 12px; }
+    .celebrate .sheet { border-radius: 24px; margin: auto 12px; }
+    .celebrate { align-items: center; }
+    /* Statistika: davrlar */
+    .seg5 { grid-template-columns: repeat(5, 1fr); }
+    .seg5 button { font-size: 12.5px; padding: 9px 2px; }
+    .chart.dense { gap: 2px; } .chart.dense .b { border-radius: 3px 3px 1px 1px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+    .metrics div { background: var(--card2); border-radius: 12px; padding: 8px 6px; text-align: center; }
+    .metrics b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; }
+    .metrics span { font-size: 11px; color: var(--sub); line-height: 1.3; display: block; }
+    .metrics .up { color: var(--accent); } .metrics .down { color: var(--red); }
     /* Qibla */
     .qibla-btn { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: #fff; padding: 8px 12px; font-size: 14px; border-radius: 12px; }
     .compass-card { text-align: center; }

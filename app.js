@@ -14,7 +14,9 @@ import {
 import { QAZO as Q_QAZO, START as Q_START, fetchArabic, pick, quoteById, quranUrl } from './quotes.js';
 import { LEARN_DISCLAIMER, LEARN_SECTIONS } from './learn.js';
 import { diff as angDiff, distanceToKaaba, magDeclination, norm as angNorm, qiblaBearing, qiblaSunTimes, startCompass, sunPosition } from './qibla.js';
-import { MONTHS, WEEKDAYS, achievements, dayDone, monthGrid, recordDone, streak, summary, weekBars } from './stats.js';
+import {
+  MONTHS, WEEKDAYS, achievements, dayDone, finishPlans, monthGrid, perPrayer, periodStats, recentPace, recordDone, streak, summary, totalDone,
+} from './stats.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
 const SUPPORT = {
@@ -33,7 +35,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '18';
+export const APP_VERSION = '19';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -404,6 +406,12 @@ function renderHome() {
       <div class="ic-title">🌸 Uzrli kunlar rejimi yoqilgan</div>
       <div class="ic-text">Vaqti o‘tgan namozlar qazo hisobiga qo‘shilmaydi, eslatmalar yuborilmaydi.</div>
       <button class="btn gold" id="exOff">Tugadi — o‘chirish</button></div>` : ''}
+    ${backupDue() ? `<div class="install-card">
+      <div class="ic-title">💾 Zaxira nusxa oling</div>
+      <div class="ic-text">${state.lastBackup ? `Oxirgi zaxira: ${fmtDate(new Date(state.lastBackup))}.` : 'Hali zaxira olinmagan.'}
+        Telefon almashsa yoki ilova o‘chsa, qazo hisobingiz yo‘qolmasligi uchun faylni Telegram yoki Drive’ga saqlab qo‘ying.</div>
+      <div class="row" style="gap:8px"><button class="btn primary" id="bkNow" style="flex:2">Zaxira olish</button>
+        <button class="btn" id="bkLater" style="flex:1">Keyinroq</button></div></div>` : ''}
 
     <div class="section">Bugungi namozlar</div>
     ${prayers}
@@ -444,6 +452,11 @@ function renderHome() {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
   });
   $app.querySelectorAll('[data-undo]').forEach((b) => { b.onclick = () => askUndo(key, b.dataset.undo); });
+  const bk = $app.querySelector('#bkNow');
+  if (bk) {
+    bk.onclick = exportBackup;
+    $app.querySelector('#bkLater').onclick = () => save({ ...state, backupSnooze: Date.now() + 7 * 86400000 });
+  }
   const ex = $app.querySelector('#exOff');
   if (ex) ex.onclick = () => setExcused(false);
 }
@@ -465,29 +478,118 @@ function setExcused(on) {
 }
 
 /* ---------------- Qazo bo'limi ---------------- */
-function doneAction(p, delta) {
+// n > 0 — n ta qazo ado qilindi; n < 0 — bugungi xatoni bekor qilish; mode 'add' — qazo hisobiga qo'shish (tuzatish)
+function doneAction(p, n, mode) {
   const now = new Date();
   const beforeAch = new Set(achievements(state, now).filter((a) => a.unlocked).map((a) => a.id));
   const goal = Number(state.settings.dailyGoal) || 0;
   const todayBefore = dayDone(state, dayKey(now));
+  const leftBefore = totalQazo(state);
   let next;
-  if (delta > 0) {
-    next = recordDone(state, p, 1, now);
-    if (next === state) return toast(`${NAMES[p]} bo‘yicha qazo qolmagan.`);
-  } else if ((state.done?.[dayKey(now)]?.[p] || 0) > 0) {
-    next = recordDone(state, p, -1, now);
-    toast(`Bekor qilindi: ${NAMES[p]} +1`);
-  } else {
-    next = { ...state, qazo: { ...state.qazo, [p]: (state.qazo[p] || 0) + 1 } };
-    toast(`${NAMES[p]}: qazo hisobiga +1 qo‘shildi`);
+  if (mode === 'add') {
+    next = { ...state, qazo: { ...state.qazo, [p]: (state.qazo[p] || 0) + n } };
+    save(next);
+    return toast(`${NAMES[p]}: qazo hisobiga +${n} qo‘shildi`);
   }
+  next = recordDone(state, p, n, now);
+  if (next === state) return toast(n > 0 ? `${NAMES[p]} bo‘yicha qazo qolmagan.` : `Bugun ${NAMES[p]} bo‘yicha bekor qiladigan narsa yo‘q.`);
   save(next);
-  if (delta > 0) {
-    const fresh = achievements(next, now).filter((a) => a.unlocked && !beforeAch.has(a.id));
-    if (fresh.length) toast(`${fresh[0].icon} Yangi yutuq: ${fresh[0].title}!`, 5000);
-    else if (goal && todayBefore < goal && todayBefore + 1 >= goal) toast('🎉 Bugungi maqsad bajarildi! Alloh qabul qilsin.', 5000);
-    else if (totalQazo(next) === 0) toast('🌙 Barcha qazolar ado qilindi! Alloh qabul qilsin.', 6000);
-  }
+  if (n < 0) return toast(`Bekor qilindi: ${NAMES[p]} ${-n} ta`);
+  const added = dayDone(next, dayKey(now)) - todayBefore;
+  if (leftBefore > 0 && totalQazo(next) === 0) return showCelebration();
+  const fresh = achievements(next, now).filter((a) => a.unlocked && !beforeAch.has(a.id));
+  if (fresh.length) toast(`${fresh[0].icon} Yangi yutuq: ${fresh[0].title}!`, 5000);
+  else if (goal && todayBefore < goal && todayBefore + added >= goal) toast('🎉 Bugungi maqsad bajarildi! Alloh qabul qilsin.', 5000);
+  else if (added > 1) toast(`✓ ${NAMES[p]}: ${added} ta ado qilindi`);
+}
+
+// Namoz bo'yicha tezkor kiritish oynasi
+function openQazoSheet(p) {
+  document.querySelector('.sheet-bg')?.remove();
+  const left = state.qazo[p] || 0;
+  const today = state.done?.[dayKey(new Date())]?.[p] || 0;
+  const btn = (n, attr) => `<button class="chipbtn" ${attr}="${n}" ${attr === 'data-do' && n > left ? 'disabled' : ''}>${n}</button>`;
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="sheet-bg"><div class="sheet">
+      <div class="row"><div class="p-ico">${ICONS[p]}</div><div class="grow"><div class="ic-title" style="padding:0">${NAMES[p]}</div>
+        <div class="sub">Qoldi: <b>${num(left)}</b>${today ? ` · bugun ${today} ta ado qilingan` : ''}</div></div></div>
+      <div class="sheet-l">✓ Necha ta ado qildingiz?</div>
+      <div class="chips">${[1, 2, 3, 5, 10].map((n) => btn(n, 'data-do')).join('')}</div>
+      <div class="row" style="margin-top:8px"><input type="number" id="shN" min="1" placeholder="Boshqa son" style="flex:1" />
+        <button class="primary" id="shDo" style="padding:12px 16px">Ado qildim</button></div>
+      ${today ? `<div class="sheet-l">↩️ Xato bosdimmi? (faqat bugungisi)</div>
+        <div class="chips">${[1, 2, 5].filter((n) => n <= today).map((n) => `<button class="chipbtn" data-undo="${n}">−${n}</button>`).join('')}</div>` : ''}
+      <div class="sheet-l">＋ Qazo hisobiga qo‘shish (tuzatish)</div>
+      <div class="chips">${[1, 5, 10].map((n) => `<button class="chipbtn" data-add="${n}">+${n}</button>`).join('')}</div>
+      <button class="btn" id="shClose" style="margin-top:16px">Yopish</button>
+    </div></div>`);
+  const bg = document.querySelector('.sheet-bg');
+  const close = () => bg.remove();
+  bg.onclick = (e) => { if (e.target === bg) close(); };
+  bg.querySelector('#shClose').onclick = close;
+  bg.querySelectorAll('[data-do]').forEach((b) => { b.onclick = () => { close(); doneAction(p, Number(b.dataset.do)); }; });
+  bg.querySelectorAll('[data-undo]').forEach((b) => { b.onclick = () => { close(); doneAction(p, -Number(b.dataset.undo)); }; });
+  bg.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => {
+    if (!confirm(`${NAMES[p]} qazo hisobiga ${b.dataset.add} ta qo‘shilsinmi?`)) return;
+    close(); doneAction(p, Number(b.dataset.add), 'add'); }; });
+  bg.querySelector('#shDo').onclick = () => {
+    const n = Math.floor(Number(bg.querySelector('#shN').value));
+    if (!(n > 0)) return toast('Sonni kiriting');
+    close(); doneAction(p, n);
+  };
+}
+
+// Barcha qazolar tugaganda
+function showCelebration() {
+  const sm = summary(state, new Date());
+  const st = streak(state, new Date());
+  document.querySelector('.sheet-bg')?.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="sheet-bg celebrate"><div class="sheet" style="text-align:center">
+      <div style="font-size:64px">🌙</div>
+      <div class="ic-title" style="font-size:26px;padding:0">Alhamdulillah!</div>
+      <p style="line-height:1.6">Siz belgilagan barcha qazo namozlar ado qilindi. Alloh qabul qilsin!</p>
+      <div class="q-nums"><div><b>${num(sm.total)}</b><span>ado qilingan</span></div>
+        <div><b>${st.best}</b><span>eng uzun streak</span></div><div><b>0</b><span>qoldi</span></div></div>
+      <p class="hint" style="text-align:center">Endi ham namozlarni o‘z vaqtida o‘qishda davom eting — ilova vaqti o‘tgan namozlarni kuzatib boradi.</p>
+      <button class="btn primary" id="ceStats">📊 Statistikani ko‘rish</button>
+      <button class="btn" id="ceClose">Yopish</button>
+    </div></div>`);
+  const bg = document.querySelector('.sheet-bg');
+  bg.querySelector('#ceClose').onclick = () => bg.remove();
+  bg.querySelector('#ceStats').onclick = () => { bg.remove(); go('stats'); };
+  try { navigator.vibrate?.([80, 60, 80]); } catch {}
+}
+
+// "Qachon tugaydi?" kalkulyatori
+function calcHtml(sm) {
+  const goal = sm.goal || 5;
+  const opts = [...new Set([goal, 5, 10, 20].filter((n) => n > 0))].sort((a, b) => a - b);
+  const pace = recentPace(state, new Date(), 14);
+  const plans = finishPlans(sm.remaining, opts);
+  const yrs = (d) => (d >= 365 ? `${(d / 365).toFixed(1)} yil` : `${num(d)} kun`);
+  return `<div class="card">
+    <div class="card-head"><h2>⏳ Qachon tugaydi?</h2><span class="sub">${num(sm.remaining)} ta qoldi</span></div>
+    ${plans.map((x) => `<div class="calc ${x.perDay === sm.goal ? 'on' : ''}"><span>Kuniga <b>${x.perDay}</b> ta</span>
+      <span>${yrs(x.days)}</span><b>${fmtDate(x.date)}</b></div>`).join('')}
+    ${pace >= 0.5 ? (() => { const f = finishPlans(sm.remaining, [pace])[0];
+      return `<div class="finish" style="text-align:left">📈 Oxirgi 14 kundagi tempingiz: kuniga <b>${pace.toFixed(1)}</b> ta → taxminan <b>${fmtDate(f.date)}</b></div>`; })() : ''}
+    <p class="hint">Kuniga ${activePrayers(state.settings).length} ta (bir kunlik namozlar${state.settings.includeVitr ? ', vitr bilan' : ''}) o‘qisangiz — har kuni bir kunlik qazo yopiladi.</p>
+  </div>`;
+}
+
+// Qaysi namoz ortda qolmoqda?
+function progressHtml() {
+  const list = perPrayer(state, activePrayers(state.settings));
+  if (!list.some((x) => x.done + x.left > 0)) return '';
+  const minPct = Math.min(...list.filter((x) => x.left > 0).map((x) => x.pct));
+  const lag = list.find((x) => x.left > 0 && x.pct === minPct);
+  return `<div class="card">
+    <h2>📊 Qaysi namoz ortda qolmoqda?</h2>
+    ${list.map((x) => `<div class="pp"><span class="pp-n">${ICONS[x.p]} ${NAMES[x.p]}</span>
+      <div class="bar thin" style="flex:1;margin:0"><i style="width:${x.pct}%"></i></div><b>${x.pct}%</b></div>`).join('')}
+    ${lag && list.some((x) => x.pct !== minPct) ? `<p class="hint">💡 <b>${NAMES[lag.p]}</b> qazosi boshqalardan ortda — unga ko‘proq e’tibor bering.</p>` : ''}
+  </div>`;
 }
 
 function renderQazo() {
@@ -506,7 +608,7 @@ function renderQazo() {
           ${todayDone[p] ? `<span class="today">· bugun ${todayDone[p]} ✓</span>` : ''}</div>
       </div>
       <button class="ado" data-ado="${p}" ${(state.qazo[p] || 0) <= 0 ? 'disabled' : ''}>✓ Ado qildim</button>
-      <button class="plus" data-plus="${p}" aria-label="${NAMES[p]}: bekor qilish yoki qo‘shish">＋</button>
+      <button class="plus" data-more="${p}" aria-label="${NAMES[p]}: bir nechta, bekor qilish, tuzatish">⋯</button>
     </div>`).join('');
 
   $app.innerHTML = `
@@ -531,6 +633,9 @@ function renderQazo() {
       <div class="sub" style="margin-top:8px">Ado qilingan: <b style="color:var(--text)">${num(sm.total)}</b></div>
       ${finish ? `<div class="finish">Kuniga ${sm.goal} tadan — taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
     </div>
+    ${sm.remaining === 0 && sm.total > 0 ? `<div class="card" style="text-align:center"><div style="font-size:40px">🌙</div>
+      <h2 style="margin:6px 0">Alhamdulillah! Qazolar tugadi</h2><p class="sub">Endi namozlarni o‘z vaqtida o‘qishda davom eting.</p></div>` : ''}
+    ${sm.remaining > 0 ? calcHtml(sm) : ''}
 
     ${s.gender === 'ayol' || s.excused ? `<div class="card">
       <div class="switch" style="margin-top:0"><span><b>🌸 Uzrli kunlar (hayz/nifos)</b><br>
@@ -539,13 +644,14 @@ function renderQazo() {
 
     <div class="section">Namozlar bo‘yicha</div>
     ${rows}
+    ${progressHtml()}
     <button class="learn-card" id="toLearnQ" style="margin-top:16px">
       <span class="lc-i">💭</span>
       <span class="grow"><b>Qazo qanday o‘qiladi va niyat qilinadi?</b><br><span class="sub">Qo‘llanmani ochish</span></span>
       <span class="lc-a">›</span>
     </button>
     <p class="hint"><b>✓ Ado qildim</b> — bitta qazo o‘qildi, hisobdan ayriladi va bugungi natijangizga yoziladi.<br>
-      <b>＋</b> — bugun xato bosgan bo‘lsangiz bekor qiladi, aks holda qazo hisobiga bitta qo‘shadi.</p>`;
+      <b>⋯</b> — bir nechtasini birdan kiritish (2, 5, 10…), bugungi xatoni bekor qilish yoki qazo hisobini tuzatish.</p>`;
 
   const setGoal = (v) => save({ ...state, settings: { ...s, dailyGoal: Math.max(0, Math.min(100, v)) } });
   $app.querySelector('#gMinus').onclick = () => setGoal((Number(s.dailyGoal) || 0) - 1);
@@ -554,7 +660,7 @@ function renderQazo() {
   $app.querySelector('#toLearnQ').onclick = () => { learnOpen = 'qazo'; go('learn'); };
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
-  $app.querySelectorAll('[data-plus]').forEach((b) => { b.onclick = () => doneAction(b.dataset.plus, -1); });
+  $app.querySelectorAll('[data-more]').forEach((b) => { b.onclick = () => openQazoSheet(b.dataset.more); });
 }
 
 /* ---------------- Qibla ---------------- */
@@ -709,12 +815,16 @@ function renderLearn() {
 }
 
 /* ---------------- Statistika ---------------- */
+let statPeriod = '7';
+const PERIODS = [['7', 'Hafta'], ['30', '30 kun'], ['180', '6 oy'], ['365', '1 yil'], ['all', 'Umumiy']];
 function renderStats() {
   const now = new Date();
   const sm = summary(state, now);
   const st = streak(state, now);
-  const bars = weekBars(state, now);
-  const max = Math.max(sm.goal, ...bars.map((b) => b.n), 1);
+  const ps = periodStats(state, statPeriod, now);
+  const bars = ps.bars;
+  const dayBuckets = statPeriod === '7' || statPeriod === '30';
+  const max = Math.max(dayBuckets ? sm.goal : 0, ...bars.map((b) => b.n), 1);
   const ach = achievements(state, now);
   const unlocked = ach.filter((a) => a.unlocked).length;
   const finish = estimatedFinish(state, now);
@@ -738,13 +848,22 @@ function renderStats() {
     </div>
 
     <div class="card">
-      <div class="card-head"><h2>Bu hafta</h2><span class="sub">${num(sm.week)} ta</span></div>
-      <div class="chart">
-        ${sm.goal ? `<div class="goal-line" style="bottom:calc(22px + ${H} * ${sm.goal / max})"><span>maqsad ${sm.goal}</span></div>` : ''}
+      <div class="seg seg5">${PERIODS.map(([k, l]) => `<button data-period="${k}" class="${statPeriod === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <div class="card-head" style="margin-top:14px"><h2>${PERIODS.find((x) => x[0] === statPeriod)[1]}</h2><span class="sub">${num(ps.total)} ta</span></div>
+      <div class="chart ${bars.length > 14 ? 'dense' : ''}">
+        ${dayBuckets && sm.goal ? `<div class="goal-line" style="bottom:calc(22px + ${H} * ${sm.goal / max})"><span>maqsad ${sm.goal}</span></div>` : ''}
         ${bars.map((b) => `<div class="col">
-          <div class="n">${b.future ? '' : b.n}</div>
+          <div class="n">${b.future || bars.length > 14 ? '' : b.n}</div>
           <div class="b ${b.isToday ? 'today' : ''} ${b.n ? '' : 'zero'}" style="height:calc(${H} * ${b.n / max})"></div>
-          <div class="d ${b.isToday ? 'today' : ''}">${b.label}</div></div>`).join('')}
+          <div class="d ${b.isToday ? 'today' : ''}">${bars.length > 14 && statPeriod === '30' ? (bars.indexOf(b) % 5 === 0 ? b.label : '') : b.label}</div></div>`).join('')}
+      </div>
+      <div class="metrics">
+        <div><b>${ps.avg}</b><span>kuniga o‘rtacha</span></div>
+        <div><b>${ps.active}/${ps.days}</b><span>faol kunlar</span></div>
+        <div><b>${ps.best ? ps.best.n : '—'}</b><span>${ps.best ? `eng yaxshi kun · ${fmtDate(ps.best.date).slice(0, 5)}` : 'eng yaxshi kun'}</span></div>
+        <div><b>${num(ps.bestWeek)}</b><span>eng yaxshi hafta</span></div>
+        <div><b>${ps.bestWeekday || '—'}</b><span>eng faol kun</span></div>
+        <div><b class="${ps.change > 0 ? 'up' : ps.change < 0 ? 'down' : ''}">${ps.change == null ? '—' : `${ps.change > 0 ? '+' : ''}${ps.change}%`}</b><span>oldingi davrga nisbatan</span></div>
       </div>
     </div>
 
@@ -770,7 +889,8 @@ function renderStats() {
         <div class="bi">${a.icon}</div><div class="bt">${a.title}</div>
         <div class="bd">${a.unlocked ? a.desc : `${num(a.value)} / ${num(a.need)}`}</div>
       </div>`).join('')}</div>
-    <p class="hint">Statistika ilovaning shu versiyasidan boshlab yuritiladi.</p>`;
+    <p class="hint">Statistika ilovaning 10-versiyasidan boshlab yuritiladi.</p>`;
+  $app.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { statPeriod = b.dataset.period; render(); }; });
 }
 
 /* ---------------- Kalendar ---------------- */
@@ -1048,8 +1168,10 @@ function renderSettings() {
     <a class="btn" href="${APP_URL}privacy.html" target="_blank" rel="noopener">🔒 Maxfiylik siyosati</a>
 
     <div class="section">Zaxira</div>
-    <button class="btn" id="export">Zaxira faylni yuklab olish</button>
-    <label>Zaxira faylini tanlang</label><input type="file" id="importFile" accept=".json,application/json" />
+    <p class="sub" style="margin:0">Oxirgi zaxira: <b>${state.lastBackup ? fmtDate(new Date(state.lastBackup)) : 'hali olinmagan'}</b></p>
+    <button class="btn primary" id="export">💾 Zaxira nusxa olish va saqlash</button>
+    <p class="hint">Faylni o‘zingizga Telegram’ga (“Saqlangan xabarlar”), Google Drive yoki pochtaga yuboring. Telefon almashsa yoki ilova o‘chsa — shu fayldan tiklanadi.</p>
+    <label>Zaxiradan tiklash — faylni tanlang</label><input type="file" id="importFile" accept=".json,application/json,text/plain" />
 
     <button class="btn danger" id="reset" style="margin-top:24px">Profilni o‘chirish</button>
     <div class="ver">Namoz va Qazo · versiya ${APP_VERSION}${CHANNEL === 'web' ? '' : ` · ${CHANNEL}`}</div>`;
@@ -1098,18 +1220,13 @@ function renderSettings() {
     toast('✓ Saqlandi');
     refreshOfficial(settings).then((ch) => ch && render());
   };
-  $app.querySelector('#export').onclick = () => {
-    const blob = new Blob([JSON.stringify({ app: 'namoz-qazo', v: 1, state })], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `namoz-qazo-zaxira-${dayKey(new Date())}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  };
+  $app.querySelector('#export').onclick = exportBackup;
   $app.querySelector('#importFile').onchange = async (e) => {
     try {
       const data = JSON.parse(await e.target.files[0].text());
       if (data?.app !== 'namoz-qazo' || !data.state?.qazo) throw new Error();
+      const when = data.at ? fmtDate(new Date(data.at)) : 'noma’lum sana';
+      if (!confirm(`${when} dagi zaxira tiklansinmi?\nHozirgi ma’lumotlar shu zaxira bilan almashtiriladi.`)) { e.target.value = ''; return; }
       screen = 'home'; form = null;
       const next = { ...EMPTY, ...data.state, done: data.state.done || {} };
       applyOfficial(next.settings);
@@ -1122,6 +1239,44 @@ function renderSettings() {
     try { localStorage.removeItem(KEY); } catch {}
     state = { ...EMPTY }; screen = 'home'; form = null; render();
   };
+}
+
+/* ---------------- Zaxira ---------------- */
+async function exportBackup() {
+  const now = new Date();
+  const json = JSON.stringify({ app: 'namoz-qazo', v: 1, at: now.getTime(), state: { ...state, lastBackup: now.getTime() } });
+  const name = `namoz-qazo-zaxira-${dayKey(now)}.json`;
+  const text = `Namoz va Qazo — zaxira nusxa (${fmtDate(now)}). Qazo qoldi: ${totalQazo(state)} ta.`;
+  let ok = false;
+  try {
+    if (isNative()) {
+      const FS = window.Capacitor?.Plugins?.Filesystem, SH = window.Capacitor?.Plugins?.Share;
+      const { uri } = await FS.writeFile({ path: name, data: json, directory: 'CACHE', encoding: 'utf8' });
+      await SH.share({ title: 'Zaxira nusxa', text, files: [uri], dialogTitle: 'Zaxirani qayerga saqlaysiz?' });
+      ok = true;
+    } else {
+      const file = new File([json], name, { type: 'application/json' });
+      if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: 'Zaxira nusxa', text }); ok = true; }
+      else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file); a.download = name; a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        ok = true;
+      }
+    }
+  } catch (e) {
+    if (e?.name === 'AbortError' || /cancel/i.test(e?.message || '')) return;
+    return toast('Zaxira saqlanmadi. Qayta urinib ko‘ring.');
+  }
+  if (ok) { save({ ...state, lastBackup: now.getTime(), backupSnooze: 0 }); toast('✓ Zaxira tayyor. Faylni xavfsiz joyda saqlang.'); }
+}
+
+// 14 kundan beri zaxira olinmagan bo'lsa — bosh sahifada eslatma
+function backupDue() {
+  const used = totalDone(state) > 0 || Object.keys(state.log || {}).length >= 7;
+  if (!used) return false;
+  if ((state.backupSnooze || 0) > Date.now()) return false;
+  return !state.lastBackup || Date.now() - state.lastBackup > 14 * 86400000;
 }
 
 /* ---------------- Bildirishnoma sozlamalari ---------------- */

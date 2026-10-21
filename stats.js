@@ -8,20 +8,44 @@ export const WEEKDAYS = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
 const sum = (o) => Object.values(o || {}).reduce((a, n) => a + (Number(n) || 0), 0);
 export const dayDone = (state, key) => sum(state.done?.[key]);
 
-// Qazo ado qilindi (+1) yoki xato bosilgani bekor qilindi (-1)
+// Qazo ado qilindi (delta > 0) yoki xato bosilgani bekor qilindi (delta < 0). Bir nechtasini birdan ham qabul qiladi.
 export function recordDone(state, p, delta = 1, now = new Date()) {
   const key = dayKey(now);
   const day = { ...(state.done?.[key] || {}) };
   const cur = day[p] || 0;
-  if (delta > 0 && (state.qazo[p] || 0) <= 0) return state;
-  if (delta < 0 && cur <= 0) return state;
-  day[p] = cur + delta;
+  const left = state.qazo[p] || 0;
+  const d = delta > 0 ? Math.min(delta, left) : -Math.min(-delta, cur);
+  if (!d) return state;
+  day[p] = cur + d;
   if (!day[p]) delete day[p];
   return {
     ...state,
-    qazo: { ...state.qazo, [p]: Math.max(0, (state.qazo[p] || 0) - delta) },
+    qazo: { ...state.qazo, [p]: Math.max(0, left - d) },
     done: { ...state.done, [key]: day },
   };
+}
+
+// Har bir namoz bo'yicha: ado qilingan, qolgan, foiz
+export function perPrayer(state, prayers) {
+  const done = {};
+  for (const d of Object.values(state.done || {})) for (const [p, n] of Object.entries(d || {})) done[p] = (done[p] || 0) + (Number(n) || 0);
+  return prayers.map((p) => {
+    const dn = done[p] || 0, left = state.qazo[p] || 0;
+    return { p, done: dn, left, pct: dn + left ? Math.round((dn / (dn + left)) * 1000) / 10 : 100 };
+  });
+}
+
+// O'rtacha temp: oxirgi `days` kun ichida kuniga necha ta
+export function recentPace(state, now = new Date(), days = 14) {
+  return rangeDone(state, addDays(noon(now), -(days - 1)), days) / days;
+}
+
+// "Qachon tugaydi?" — turli kunlik miqdorlar uchun
+export function finishPlans(remaining, perDays, now = new Date()) {
+  return perDays.filter((n) => n > 0).map((n) => {
+    const days = Math.ceil(remaining / n);
+    return { perDay: n, days, date: addDays(noon(now), days) };
+  });
 }
 
 // Haftaning dushanbasi
@@ -113,4 +137,68 @@ export function monthGrid(year, month) {
   for (let d = 1; d <= days; d++) cells.push(new Date(year, month, d, 12));
   while (cells.length % 7) cells.push(null);
   return cells;
+}
+
+// Davr statistikasi: '7' | '30' | '180' | '365' | 'all'
+export function periodStats(state, period, now = new Date()) {
+  const today = noon(now);
+  const keys = Object.keys(state.done || {}).filter((k) => dayDone(state, k) > 0).sort();
+  const firstKey = keys[0];
+  let start, bucket;
+  if (period === '7') { start = weekStart(now); bucket = 'day'; }
+  else if (period === '30') { start = addDays(today, -29); bucket = 'day'; }
+  else if (period === '180') { start = weekStart(addDays(today, -7 * 25)); bucket = 'week'; }
+  else if (period === '365') { start = new Date(today.getFullYear(), today.getMonth() - 11, 1, 12); bucket = 'month'; }
+  else {
+    const f = firstKey ? new Date(`${firstKey}T12:00:00`) : today;
+    start = new Date(f.getFullYear(), f.getMonth(), 1, 12); bucket = 'month';
+  }
+  const days = Math.round((today - start) / 86400000) + 1;
+  const daily = [];
+  for (let i = 0; i < days; i++) { const d = addDays(start, i); daily.push({ d, key: dayKey(d), n: dayDone(state, dayKey(d)) }); }
+
+  // Ustunlar
+  const bars = [];
+  if (bucket === 'day') {
+    const len = period === '7' ? 7 : days;
+    for (let i = 0; i < len; i++) {
+      const d = addDays(start, i), key = dayKey(d);
+      bars.push({ label: period === '7' ? WEEKDAYS[i] : String(d.getDate()), n: key > dayKey(today) ? 0 : dayDone(state, key),
+        isToday: key === dayKey(today), future: key > dayKey(today) });
+    }
+  } else if (bucket === 'week') {
+    for (let w = 0; w < Math.ceil(days / 7); w++) {
+      const ws = addDays(start, w * 7);
+      bars.push({ label: w % 4 === 0 ? `${ws.getDate()}.${String(ws.getMonth() + 1).padStart(2, '0')}` : '', n: rangeDone(state, ws, 7),
+        isToday: dayKey(ws) <= dayKey(today) && dayKey(addDays(ws, 6)) >= dayKey(today), future: false });
+    }
+  } else {
+    let m = new Date(start);
+    while (m <= today) {
+      const dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+      bars.push({ label: MONTHS[m.getMonth()].slice(0, 3), n: rangeDone(state, m, dim),
+        isToday: m.getFullYear() === today.getFullYear() && m.getMonth() === today.getMonth(), future: false });
+      m = new Date(m.getFullYear(), m.getMonth() + 1, 1, 12);
+    }
+  }
+
+  const past = daily.filter((x) => x.key <= dayKey(today));
+  const total = past.reduce((a, x) => a + x.n, 0);
+  const active = past.filter((x) => x.n > 0).length;
+  const best = past.reduce((b, x) => (x.n > (b?.n || 0) ? x : b), null);
+  const wd = Array(7).fill(0);
+  for (const x of past) wd[(x.d.getDay() + 6) % 7] += x.n;
+  const bestWd = wd.some((v) => v > 0) ? wd.indexOf(Math.max(...wd)) : -1;
+  let bestWeek = 0;
+  for (let i = 0; i + 6 < past.length; i++) bestWeek = Math.max(bestWeek, past.slice(i, i + 7).reduce((a, x) => a + x.n, 0));
+  if (past.length < 7) bestWeek = total;
+  const prevTotal = period === 'all' ? null : rangeDone(state, addDays(start, -past.length), past.length);
+  const change = prevTotal ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
+  return {
+    bars, total, active, days: past.length,
+    avg: past.length ? Math.round((total / past.length) * 10) / 10 : 0,
+    best: best && best.n ? { date: best.d, n: best.n } : null,
+    bestWeekday: bestWd >= 0 ? ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'][bestWd] : null,
+    bestWeek, change,
+  };
 }

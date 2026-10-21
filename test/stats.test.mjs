@@ -57,3 +57,37 @@ test('Kalendar katakchalari', () => {
   assert.equal(g.slice(0, 3).every((x) => x === null), true);
   assert.equal(g[3].getDate(), 1);
 });
+
+import { perPrayer, finishPlans, periodStats, recentPace } from '../stats.js';
+
+test('Bir nechtasini birdan ado qilish va cheklov', () => {
+  const s0 = { ...base(), qazo: { ...base().qazo, fajr: 3 } };
+  const s1 = recordDone(s0, 'fajr', 10, at(2026, 10, 21));
+  assert.equal(s1.qazo.fajr, 0); assert.equal(s1.done['2026-10-21'].fajr, 3); // qolganidan ko'p ayrilmaydi
+  const s2 = recordDone(s1, 'fajr', -5, at(2026, 10, 21));
+  assert.equal(s2.qazo.fajr, 3); assert.equal(s2.done['2026-10-21'].fajr, undefined);
+});
+
+test('Namozlar bo‘yicha progress, kalkulyator, temp', () => {
+  const s = { ...base(), done: { '2026-10-20': { fajr: 20, isha: 5 }, '2026-10-21': { fajr: 5 } } };
+  const pp = perPrayer(s, ['fajr', 'isha', 'asr']);
+  assert.deepEqual(pp.map((x) => x.pct), [20, 4.8, 0]);
+  const f = finishPlans(1000, [5, 10, 0], at(2026, 10, 21));
+  assert.deepEqual(f.map((x) => x.days), [200, 100]);
+  assert.equal(recentPace(s, at(2026, 10, 21), 2), 15);
+});
+
+test('Davr statistikasi', () => {
+  const done = {};
+  for (let i = 0; i < 40; i++) { const d = new Date(2026, 9, 21 - i, 12); done[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`] = { fajr: i % 2 ? 2 : 4 }; }
+  const s = { ...base(), done };
+  const m30 = periodStats(s, '30', at(2026, 10, 21));
+  assert.equal(m30.bars.length, 30); assert.equal(m30.total, 90); assert.equal(m30.avg, 3);
+  assert.equal(m30.best.n, 4); assert.equal(m30.change, 200); // oldingi 30 kunda faqat 10 kunlik ma'lumot (30 ta)
+  const w = periodStats(s, '7', at(2026, 10, 21));
+  assert.equal(w.bars.length, 7); assert.equal(w.total, 10); // Du 4, Se 2, Ch 4
+  assert.equal(periodStats(s, '180', at(2026, 10, 21)).bars.length, 26);
+  assert.equal(periodStats(s, '365', at(2026, 10, 21)).bars.length, 12);
+  assert.equal(periodStats(s, 'all', at(2026, 10, 21)).total, 120);
+  assert.equal(periodStats({ ...base(), done: {} }, 'all', at(2026, 10, 21)).total, 0);
+});
