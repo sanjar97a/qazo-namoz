@@ -79,3 +79,30 @@ test('Dunyo bo‘yicha: usul tanlash va shimoliy kenglik', () => {
     }
   }
 });
+
+import { undoQazo } from '../prayer.js';
+
+test('Uzrli kunlar: qazo qo‘shilmaydi, keyin o‘chirilsa yana qo‘shiladi', () => {
+  const s0 = { ...base, settings: { ...settings, excused: true }, lastProcessed: at(2026, 10, 19, 6).getTime() };
+  const r1 = processMissed(s0, at(2026, 10, 20, 7));
+  assert.deepEqual(r1.added, {});
+  assert.equal(totalQazo(r1.state), 0);
+  assert.equal(r1.state.log['2026-10-19'].asr, 'excused');
+  const s1 = { ...r1.state, settings: { ...settings, excused: false } };
+  const r2 = processMissed(s1, at(2026, 10, 20, 23));
+  assert.ok(r2.added.dhuhr === 1 && r2.added.asr === 1);
+  assert.equal(r2.added.fajr, undefined); // 20-oktabr bomdodi uzrli paytda o'tgan
+});
+
+test('Xato qazoni tuzatish', () => {
+  const s0 = { ...base, lastProcessed: at(2026, 10, 19, 12).getTime() };
+  const { state: s1 } = processMissed(s0, at(2026, 10, 19, 23));
+  assert.equal(s1.qazo.asr, 1);
+  const s2 = undoQazo(s1, '2026-10-19', 'asr', at(2026, 10, 20, 9));
+  assert.equal(s2.qazo.asr, 0);
+  assert.equal(s2.log['2026-10-19'].asr, 'prayed');
+  assert.equal(undoQazo(s2, '2026-10-19', 'asr', at(2026, 10, 20, 9)), s2); // ikkinchi marta o'zgarmaydi
+  assert.equal(undoQazo(s1, '2026-10-19', 'asr', at(2026, 11, 5, 9)), s1);  // 7 kundan eski — mumkin emas
+  const again = processMissed(s2, at(2026, 10, 20, 9));
+  assert.equal(again.state.log['2026-10-19'].asr, 'prayed'); // qayta qazoga tushmaydi
+});

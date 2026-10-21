@@ -26,7 +26,7 @@ jobs:
         id: ver
         run: echo "v=$(node -p "require('./version.json').version")" >> "$GITHUB_OUTPUT"
       - run: npm ci
-      - run: npm run build
+      - run: CHANNEL=github npm run build
       - run: npx cap sync android
       - name: APK yasash
         working-directory: android
@@ -37,6 +37,7 @@ jobs:
           ANDROID_UPLOAD_PASSWORD: ${{ secrets.ANDROID_UPLOAD_PASSWORD }}
         run: |
           if [ -z "$ANDROID_UPLOAD_PASSWORD" ]; then echo "Secret yo'q — .aab yasalmadi"; exit 0; fi
+          CHANNEL=play npm run build && npx cap copy android
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in android/app/upload.keystore.enc -out android/app/upload.keystore -pass env:ANDROID_UPLOAD_PASSWORD
           cd android && ./gradlew bundleRelease --no-daemon -PsignWith=play -PappVersionCode=${{ steps.ver.outputs.v }} -PappVersionName=1.${{ steps.ver.outputs.v }}
           cp app/build/outputs/bundle/release/app-release.aab ../namoz-qazo-play.aab

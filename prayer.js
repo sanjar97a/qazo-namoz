@@ -187,6 +187,11 @@ export function processMissed(state, now = new Date()) {
     for (const p of activePrayers(s)) {
       const end = windows[p].end;
       if (end > last && end <= now && !log[key]?.[p]) {
+        if (s.excused) {
+          // Uzrli kunlar (hayz/nifos): namoz farz emas — qazoga qo'shilmaydi
+          log[key] = { ...log[key], [p]: 'excused' };
+          continue;
+        }
         qazo[p] = (qazo[p] || 0) + 1;
         added[p] = (added[p] || 0) + 1;
         log[key] = { ...log[key], [p]: 'qazo' };
@@ -213,6 +218,18 @@ export function togglePrayed(state, day, p, now = new Date()) {
   if (cur === 'prayed') delete dayLog[p];
   else dayLog[p] = 'prayed';
   return { ...state, log: { ...state.log, [key]: dayLog } };
+}
+
+// Avtomatik qazoga tushgan, lekin aslida o'qilgan namozni tuzatish (oxirgi 7 kun ichida)
+export const UNDO_DAYS = 7;
+export function undoQazo(state, key, p, now = new Date()) {
+  if (state.log?.[key]?.[p] !== 'qazo') return state;
+  if (key < dayKey(addDays(now, -UNDO_DAYS))) return state;
+  return {
+    ...state,
+    qazo: { ...state.qazo, [p]: Math.max(0, (state.qazo[p] || 0) - 1) },
+    log: { ...state.log, [key]: { ...state.log[key], [p]: 'prayed' } },
+  };
 }
 
 function pruneLog(log, now) {

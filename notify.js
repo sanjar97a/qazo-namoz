@@ -56,7 +56,7 @@ function atTime(day, hhmm) {
 export function buildSchedule(state, now = new Date()) {
   const s = state.settings;
   const n = { ...DEFAULT_NOTIFY, ...(s?.notify || {}) };
-  if (!s || !n.enabled) return [];
+  if (!s || !n.enabled || s.excused) return []; // uzrli kunlarda eslatma yuborilmaydi
   const list = [];
   const first = currentPrayerDay(now, s);
   for (let i = 0; i < DAYS; i++) {

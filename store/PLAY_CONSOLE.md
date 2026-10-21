@@ -74,6 +74,8 @@ Namoz va Qazo — бесплатное приложение для времен�
 🔔 НАПОМИНАНИЯ: о начале намаза, перед окончанием времени, ежедневное напоминание о каза.
 
 🔒 Без регистрации и рекламы. Данные хранятся только на телефоне. Работает без интернета.
+
+Интерфейс приложения на узбекском языке (латиница).
 ```
 
 ## 4. Store listing — English (ixtiyoriy)
@@ -119,3 +121,7 @@ Namoz va Qazo — бесплатное приложение для времен�
 
 ## 8. Play App Signing
 Birinchi .aab yuklanganda **“Use Google-generated key”** ni tanlang (tavsiya). Bizning `upload.keystore` faqat yuklash kaliti. U yo‘qolsa, Play Console orqali yangisini so‘rash mumkin.
+
+## 9. Play'da e'lon qilingandan keyin (men qilaman)
+- `app.js` da `PLAY_LIVE = true` — sayt va “Ulashish” havolalari Play sahifasiga yo‘naladi, saytdagi APK tugmasi “Google Play’dan o‘rnatish” ga almashadi.
+- Play versiyasi (`CHANNEL=play`) o‘zini GitHub’dan yangilamaydi — Play qoidasi talabi. Yangilanishlar faqat Play orqali.

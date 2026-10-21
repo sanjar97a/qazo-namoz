@@ -1,7 +1,9 @@
 import {
   METHODS, NAMES, PRAYERS, TIME_KEYS, TIME_NAMES, activePrayers, addDays, baseTimes, currentPrayerDay, dayKey, dayWindows,
   estimatedFinish, fmtDate, fmtTime, initialQazo, parseDate, processMissed, suggestMethod, togglePrayed, totalQazo,
+  undoQazo, UNDO_DAYS,
 } from './prayer.js';
+import { CHANNEL } from './channel.js';
 import {
   detectLocation, distanceKm, locationErrorText, permissionGranted, placeName, quietPosition, searchCity,
 } from './location.js';
@@ -20,10 +22,15 @@ const SUPPORT = {
   telegram: '',     // fikr va takliflar uchun: 'https://t.me/sizning_username'
 };
 const APP_URL = 'https://sanjar97a.github.io/qazo-namoz/';
+// Play Market'da e'lon qilingach PLAY_LIVE = true qiling: sayt va ulashish havolalari Play'ga yo'naladi
+const PLAY_LIVE = false;
+const PLAY_URL = 'https://play.google.com/store/apps/details?id=uz.sanjar97a.namozqazo';
+const IS_PLAY = CHANNEL === 'play';
+const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '12';
+export const APP_VERSION = '13';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -47,10 +54,32 @@ function load() {
     return s;
   } catch { return { ...EMPTY }; }
 }
+// Android ilovada ma'lumot ikkinchi joyga ham yoziladi (Capacitor Preferences) — localStorage tozalansa tiklanadi
+const Prefs = () => (isNative() ? window.Capacitor?.Plugins?.Preferences : null);
+function mirror(json) { try { Prefs()?.set({ key: KEY, value: json }); } catch {} }
+async function restoreFromMirror() {
+  if (state.settings || !Prefs()) return;
+  try {
+    const { value } = await Prefs().get({ key: KEY });
+    if (!value) return;
+    const s = { ...EMPTY, ...JSON.parse(value) };
+    if (!s.settings) return;
+    s.done ||= {};
+    state = s;
+    try { localStorage.setItem(KEY, value); } catch {}
+    applyOfficial(state.settings);
+    render();
+    check();
+    toast('Ma’lumotlaringiz tiklandi.');
+  } catch {}
+}
+
 let schedTimer = null;
 function save(next) {
   state = next;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {}
+  const json = JSON.stringify(state);
+  try { localStorage.setItem(KEY, json); } catch {}
+  mirror(json);
   render();
   clearTimeout(schedTimer);
   schedTimer = setTimeout(() => reschedule(state, true), 1500);
@@ -118,7 +147,8 @@ function installHtml(force) {
     return `<div class="install-card">${close}
       <div class="ic-title">📲 Ilovani telefonga o‘rnating</div>
       <div class="ic-text">Android ilovada namoz vaqti kirganda va tugashidan oldin <b>bildirishnoma</b> keladi, internetsiz ishlaydi.</div>
-      <a class="btn install" href="${APK_URL}" id="apkLink">⬇️ Android ilovani yuklab olish</a>
+      ${PLAY_LIVE ? `<a class="btn install" href="${PLAY_URL}">▶️ Google Play’dan o‘rnatish</a>`
+        : `<a class="btn install" href="${APK_URL}" id="apkLink">⬇️ Android ilovani yuklab olish</a>`}
       ${pwaBtn}
       <div class="ic-hint">Yuklash 100% bo‘lib qotib qolsa — telefonda <b>Fayllar → Yuklanmalar</b> ga kirib, <b>namoz-qazo.apk</b> ni bosing → “O‘rnatish”.
         Birinchi marta “Noma’lum manbalarga ruxsat” so‘ralsa, ruxsat bering.
@@ -246,7 +276,7 @@ function showApkSheet() {
 }
 
 async function checkUpdate() {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine || IS_PLAY) return; // Play versiyasi faqat Google Play orqali yangilanadi
   try {
     const r = await fetch(`${isNative() ? APP_URL : ''}version.json?t=${Date.now()}`, { cache: 'no-store' });
     const v = String((await r.json()).version || '');
@@ -323,7 +353,8 @@ function renderHome() {
     const isLive = now >= w.start && now < w.end;
     let label = 'Kutilmoqda', cls = 'wait';
     if (mark === 'prayed') { label = '✓ O‘qildi'; cls = 'ok'; }
-    else if (mark === 'qazo') { label = 'Qazo'; cls = 'bad'; }
+    else if (mark === 'qazo') { label = 'Qazo ↺'; cls = 'bad'; }
+    else if (mark === 'excused') { label = 'Uzrli'; cls = 'wait'; }
     else if (isLive) { label = 'O‘qidim'; cls = 'go'; }
     else if (now >= w.end) { label = '—'; }
     const sunrise = p === 'fajr' ? ` · quyosh ${hm(times.sunrise)}` : '';
@@ -334,7 +365,8 @@ function renderHome() {
           <div class="pname">${NAMES[p]}${p === 'vitr' ? ' <span class="sub">(vojib)</span>' : ''}</div>
           <div class="sub ptime">${hm(w.start)} – ${hm(w.end)}${sunrise}</div>
         </div>
-        <button class="mark ${cls}" data-pray="${p}" ${!isLive || mark === 'qazo' ? 'disabled' : ''}>${label}</button>
+        <button class="mark ${cls}" ${mark === 'qazo' ? `data-undo="${p}"` : `data-pray="${p}"`}
+          ${mark === 'qazo' ? '' : !isLive || mark === 'excused' ? 'disabled' : ''}>${label}</button>
       </div>`;
   }).join('');
 
@@ -357,11 +389,16 @@ function renderHome() {
       </div>` : ''}
     </header>
     ${installHtml(false)}
+    ${s.excused ? `<div class="install-card" style="border-color:var(--gold-bright)">
+      <div class="ic-title">🌸 Uzrli kunlar rejimi yoqilgan</div>
+      <div class="ic-text">Vaqti o‘tgan namozlar qazo hisobiga qo‘shilmaydi, eslatmalar yuborilmaydi.</div>
+      <button class="btn gold" id="exOff">Tugadi — o‘chirish</button></div>` : ''}
 
     <div class="section">Bugungi namozlar</div>
     ${prayers}
     <p class="hint">${sourceText(times, s)}${edited ? ' · qo‘lda tuzatilgan' : ''}.
-      Vaqti tugaguncha “O‘qidim” bosilmasa, namoz avtomatik qazo hisobiga qo‘shiladi.</p>
+      Vaqti tugaguncha “O‘qidim” bosilmasa, namoz avtomatik qazo hisobiga qo‘shiladi.
+      O‘qib, belgilashni unutgan bo‘lsangiz — “Qazo ↺” ni bosing.</p>
 
     <div class="card">
       <div class="card-head"><h2>Bugungi qazo rejasi</h2><span class="pill ${sm.goal && sm.today >= sm.goal ? 'green' : ''}">${sm.today} / ${sm.goal}</span></div>
@@ -381,6 +418,25 @@ function renderHome() {
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
   });
+  $app.querySelectorAll('[data-undo]').forEach((b) => { b.onclick = () => askUndo(key, b.dataset.undo); });
+  const ex = $app.querySelector('#exOff');
+  if (ex) ex.onclick = () => setExcused(false);
+}
+
+// Xato qazoga tushgan namozni tuzatish
+function askUndo(key, p) {
+  if (!confirm(`${NAMES[p]} namozini o‘z vaqtida o‘qigan edingizmi?\nQazo hisobidan 1 ta ayiriladi.`)) return;
+  const next = undoQazo(state, key, p, new Date());
+  if (next === state) return toast(`Faqat oxirgi ${UNDO_DAYS} kun ichidagi namozni tuzatish mumkin.`);
+  save(next);
+  toast(`✓ ${NAMES[p]}: o‘qilgan deb belgilandi`);
+}
+
+// Uzrli kunlar (hayz/nifos) — yoqish/o'chirishdan oldin shu paytgacha bo'lgan namozlar hisoblab olinadi
+function setExcused(on) {
+  const settled = processMissed(state, new Date()).state;
+  save({ ...settled, settings: { ...settled.settings, excused: on } });
+  toast(on ? '🌸 Uzrli kunlar: vaqti o‘tgan namozlar qazoga qo‘shilmaydi' : 'Uzrli kunlar rejimi o‘chirildi');
 }
 
 /* ---------------- Qazo bo'limi ---------------- */
@@ -451,6 +507,11 @@ function renderQazo() {
       ${finish ? `<div class="finish">Kuniga ${sm.goal} tadan — taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
     </div>
 
+    ${s.gender === 'ayol' || s.excused ? `<div class="card">
+      <div class="switch" style="margin-top:0"><span><b>🌸 Uzrli kunlar (hayz/nifos)</b><br>
+        <span class="sub">Yoqilganda vaqti o‘tgan namozlar qazoga qo‘shilmaydi</span></span>
+        <input type="checkbox" id="exToggle" ${s.excused ? 'checked' : ''} /></div></div>` : ''}
+
     <div class="section">Namozlar bo‘yicha</div>
     ${rows}
     <p class="hint"><b>✓ Ado qildim</b> — bitta qazo o‘qildi, hisobdan ayriladi va bugungi natijangizga yoziladi.<br>
@@ -460,6 +521,8 @@ function renderQazo() {
   $app.querySelector('#gMinus').onclick = () => setGoal((Number(s.dailyGoal) || 0) - 1);
   $app.querySelector('#gPlus').onclick = () => setGoal((Number(s.dailyGoal) || 0) + 1);
   $app.querySelectorAll('[data-ado]').forEach((b) => { b.onclick = () => doneAction(b.dataset.ado, 1); });
+  const ext = $app.querySelector('#exToggle');
+  if (ext) ext.onchange = (e) => setExcused(e.target.checked);
   $app.querySelectorAll('[data-plus]').forEach((b) => { b.onclick = () => doneAction(b.dataset.plus, -1); });
 }
 
@@ -576,7 +639,15 @@ function renderCalendar() {
       ${PRAYERS.filter((p) => dd[p]).map((p) => `<div class="dl"><span class="sub">${ICONS[p]} ${NAMES[p]}</span><span>${dd[p]}</span></div>`).join('')}
       ${Object.keys(lg).length ? `
         <div class="dl"><span>O‘z vaqtida o‘qilgan</span><b>${onTime} / 5</b></div>
-        <div class="dl"><span>Qazoga tushgan</span><b style="color:${missed ? 'var(--red)' : 'inherit'}">${missed}</b></div>` : ''}
+        <div class="dl"><span>Qazoga tushgan</span><b style="color:${missed ? 'var(--red)' : 'inherit'}">${missed}</b></div>
+        ${PRAYERS.filter((p) => lg[p]).map((p) => {
+          const st = lg[p];
+          const canUndo = st === 'qazo' && cal.sel >= dayKey(addDays(now, -UNDO_DAYS));
+          const txt = st === 'prayed' ? '<span style="color:var(--accent)">✓ o‘qilgan</span>'
+            : st === 'excused' ? '<span class="sub">uzrli</span>'
+            : canUndo ? `<button class="mini" data-cundo="${p}" style="color:var(--red)">Qazo ↺</button>` : '<span style="color:var(--red)">qazo</span>';
+          return `<div class="dl"><span class="sub">${ICONS[p]} ${NAMES[p]}</span>${txt}</div>`;
+        }).join('')}` : ''}
       ${goal && n >= goal ? '<div class="finish">🎯 Kunlik maqsad bajarilgan</div>' : ''}
     </div>`;
 
@@ -584,6 +655,7 @@ function renderCalendar() {
   $app.querySelector('#calPrev').onclick = () => shift(-1);
   $app.querySelector('#calNext').onclick = () => shift(1);
   $app.querySelectorAll('[data-day]').forEach((b) => { b.onclick = () => { cal.sel = b.dataset.day; render(); }; });
+  $app.querySelectorAll('[data-cundo]').forEach((b) => { b.onclick = () => askUndo(cal.sel, b.dataset.cundo); });
 }
 
 /* ---------------- Joylashuv bloki (sozlash va sozlamalarda) ---------------- */
@@ -787,7 +859,7 @@ function renderSettings() {
     <button class="btn primary" id="save" style="margin-top:20px">Saqlash</button>
 
     <div class="section">Ilova haqida</div>
-    <button class="btn" id="checkUpd">🔄 Yangilanishni tekshirish</button>
+    ${IS_PLAY ? '' : '<button class="btn" id="checkUpd">🔄 Yangilanishni tekshirish</button>'}
     <button class="btn" id="shareBtn">📤 Do‘stlarga ulashish</button>
     <button class="btn" id="supportBtn">🤲 Loyihani qo‘llab-quvvatlash</button>
     <a class="btn" href="${APP_URL}privacy.html" target="_blank" rel="noopener">🔒 Maxfiylik siyosati</a>
@@ -797,7 +869,7 @@ function renderSettings() {
     <label>Zaxira faylini tanlang</label><input type="file" id="importFile" accept=".json,application/json" />
 
     <button class="btn danger" id="reset" style="margin-top:24px">Profilni o‘chirish</button>
-    <div class="ver">Namoz va Qazo · versiya ${APP_VERSION}</div>`;
+    <div class="ver">Namoz va Qazo · versiya ${APP_VERSION}${CHANNEL === 'web' ? '' : ` · ${CHANNEL}`}</div>`;
 
   bindInstall();
   bindInputs(f);
@@ -825,7 +897,8 @@ function renderSettings() {
   $app.querySelectorAll('[data-theme-set]').forEach((b) => { b.onclick = () => setTheme(b.dataset.themeSet); });
   bindNotify(f);
   $app.querySelector('#shareBtn').onclick = shareApp;
-  $app.querySelector('#checkUpd').onclick = async () => {
+  const cu = $app.querySelector('#checkUpd');
+  if (cu) cu.onclick = async () => {
     await checkUpdate();
     if (!newVersion) toast(navigator.onLine ? `Sizda eng yangi versiya (v${APP_VERSION})` : 'Tekshirish uchun internet kerak.');
   };
@@ -872,7 +945,8 @@ function notifyHtml(f) {
   if (!isNative()) {
     return `<p class="hint">Namoz vaqti kirganda va tugashidan oldin eslatma faqat <b>Android ilovada</b> ishlaydi
       (brauzer yopiq ilovaga bildirishnoma yubora olmaydi). Qazo hisobi va sozlamalaringizni “Zaxira” orqali o‘tkazishingiz mumkin.</p>
-      <a class="btn primary" href="${APK_URL}">📥 Android ilovani yuklab olish (APK)</a>`;
+      ${PLAY_LIVE ? `<a class="btn primary" href="${PLAY_URL}">▶️ Google Play’dan o‘rnatish</a>`
+        : `<a class="btn primary" href="${APK_URL}">📥 Android ilovani yuklab olish (APK)</a>`}`;
   }
   const n = f.notify;
   const perm = notifyStatus.permission;
@@ -914,7 +988,7 @@ function bindNotify(f) {
 
 /* ---------------- Ulashish va qo'llab-quvvatlash ---------------- */
 async function shareApp() {
-  const data = { title: 'Namoz va Qazo', text: SHARE_TEXT, url: APP_URL };
+  const data = { title: 'Namoz va Qazo', text: SHARE_TEXT, url: SHARE_URL };
   const NS = window.Capacitor?.Plugins?.Share;
   if (isNative() && NS) {
     try { await NS.share({ ...data, dialogTitle: 'Ulashish' }); return; } catch { return; }
@@ -922,7 +996,7 @@ async function shareApp() {
   if (navigator.share) {
     try { await navigator.share(data); return; } catch (e) { if (e?.name === 'AbortError') return; }
   }
-  window.open(`https://t.me/share/url?url=${encodeURIComponent(APP_URL)}&text=${encodeURIComponent(SHARE_TEXT)}`, '_blank');
+  window.open(`https://t.me/share/url?url=${encodeURIComponent(SHARE_URL)}&text=${encodeURIComponent(SHARE_TEXT)}`, '_blank');
 }
 
 async function copyText(text, msg) {
@@ -976,7 +1050,7 @@ function renderSupport() {
 
   $app.querySelector('#back').onclick = () => go('settings');
   $app.querySelector('#shareSup').onclick = shareApp;
-  $app.querySelector('#copyLink').onclick = () => copyText(APP_URL, 'Havola nusxalandi');
+  $app.querySelector('#copyLink').onclick = () => copyText(SHARE_URL, 'Havola nusxalandi');
   const cc = $app.querySelector('#copyCard');
   if (cc) cc.onclick = () => copyText(SUPPORT.card.replace(/\s/g, ''), 'Karta raqami nusxalandi');
 }
@@ -985,12 +1059,25 @@ function bindInputs(f) {
   $app.querySelectorAll('[data-f]').forEach((el) => { el.oninput = el.onchange = () => { f[el.dataset.f] = el.value; }; });
 }
 
+/* ---------------- Android "Orqaga" tugmasi ---------------- */
+function onBack() {
+  const sheet = document.querySelector('.sheet-bg');
+  if (sheet) return sheet.remove();
+  if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
+  if (screen === 'support') return go('settings');
+  if (screen !== 'home') return go('home');
+  window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
+}
+try { if (isNative()) window.Capacitor?.Plugins?.App?.addListener('backButton', onBack); } catch {}
+
 /* ---------------- Ishga tushirish ---------------- */
 if (location.search.includes('v=')) history.replaceState(null, '', location.pathname);
 applyTheme();
 applyOfficial(state.settings);
 render();
 check();
+restoreFromMirror();
+if (state.settings) mirror(JSON.stringify(state));
 if (state.settings) {
   refreshOfficial(state.settings).then((ch) => { if (ch && screen === 'home') render(); reschedule(state, true); });
   autoLocate();

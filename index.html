@@ -250,6 +250,18 @@
     .steps li { margin-bottom: 6px; }
     @keyframes pop { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @media (max-width: 370px) {
+      #app { padding-left: 12px; padding-right: 12px; }
+      .hero { margin: 0 -12px; padding-left: 16px; padding-right: 16px; }
+      .prayer, .qrow { gap: 9px; padding: 10px; }
+      .p-ico { width: 36px; height: 36px; font-size: 18px; border-radius: 11px; }
+      .mark { min-width: 86px; padding: 8px 8px; font-size: 13px; }
+      .ptime { font-size: 13px; white-space: nowrap; }
+      .ado { padding: 10px; font-size: 13px; }
+      .tab { font-size: 10px; } .tab .ti { padding: 3px 12px; }
+      .next .name, .next .count b { font-size: 19px; }
+      .big { font-size: 30px; }
+    }
     @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   </style>
 </head>
