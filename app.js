@@ -31,7 +31,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '14';
+export const APP_VERSION = '15';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -209,22 +209,21 @@ async function autoLocate() {
 
 /* ---------------- Ekranlar va pastki menyu ---------------- */
 const TABS = [
-  ['home', 'Bosh sahifa', '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
+  ['home', 'Asosiy', '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
   ['qazo', 'Qazo', '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>'],
   ['stats', 'Statistika', '<path d="M4 20V11M10 20V5M16 20v-6M2 20h20"/>'],
   ['calendar', 'Kalendar', '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'],
-  ['settings', 'Sozlamalar', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
+  ['learn', 'Qo‘llanma', '<path d="M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5c-3-.5-6 0-8 1.5z"/><path d="M12 6v14.5"/>'],
+  ['settings', 'Sozlama', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
 ];
 function tabbarHtml() {
-  const active = screen === 'support' ? 'settings' : screen === 'learn' ? learnFrom : screen;
+  const active = screen === 'support' ? 'settings' : screen;
   return `<nav class="tabbar"><div class="in">${TABS.map(([id, label, svg]) => `
     <button class="tab ${active === id ? 'on' : ''}" data-tab="${id}" aria-label="${label}">
       <span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>${label}
     </button>`).join('')}</div></nav>`;
 }
-let learnFrom = 'home';
 function go(to) {
-  if (to === 'learn' && screen !== 'learn') learnFrom = screen;
   if (screen === 'settings' && to !== 'settings') applyOfficial(state.settings);
   screen = to; form = null; render();
 }
@@ -547,8 +546,7 @@ function renderQazo() {
 let learnOpen = null;
 function renderLearn() {
   $app.innerHTML = `
-    <div class="row" style="margin:6px 0 4px"><button class="icon" id="lback" aria-label="Orqaga">←</button>
-      <div class="page-title" style="margin:0">Qo‘llanma</div></div>
+    <div class="page-title">Qo‘llanma</div>
     <p class="sub" style="line-height:1.55">Namoz o‘qish tartibi va qazo namozlari — O‘zbekiston musulmonlari idorasi va islom.uz materiallari asosida.</p>
     ${LEARN_SECTIONS.map((x) => `
       <details class="lsec" ${learnOpen === x.id ? 'open' : ''} data-sec="${x.id}">
@@ -556,7 +554,6 @@ function renderLearn() {
         <div class="lbody">${x.html}</div>
       </details>`).join('')}
     <div class="note" style="padding-right:14px;margin-top:20px">ℹ️ ${LEARN_DISCLAIMER}</div>`;
-  $app.querySelector('#lback').onclick = () => go(learnFrom);
   $app.querySelectorAll('details.lsec').forEach((d) => {
     d.addEventListener('toggle', () => { if (d.open) { learnOpen = d.dataset.sec; $app.querySelectorAll('details.lsec').forEach((o) => { if (o !== d) o.open = false; }); } });
   });
@@ -1104,7 +1101,6 @@ function onBack() {
   if (sheet) return sheet.remove();
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
   if (screen === 'support') return go('settings');
-  if (screen === 'learn') return go(learnFrom);
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }

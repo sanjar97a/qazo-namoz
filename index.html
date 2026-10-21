@@ -188,11 +188,11 @@
     /* Pastki menyu */
     .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; background: var(--tab); backdrop-filter: blur(14px);
       border-top: 1px solid var(--line); padding: 6px 6px calc(var(--bottom) + 6px); }
-    .tabbar .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+    .tabbar .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
     .tab { border: 0; background: none; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-      color: var(--sub); font-size: 11px; font-weight: 600; border-radius: 12px; }
+      color: var(--sub); font-size: 11px; font-weight: 600; border-radius: 12px; white-space: nowrap; min-width: 0; }
     .tab svg { width: 24px; height: 24px; }
-    .tab .ti { padding: 3px 16px; border-radius: 99px; transition: background .2s; }
+    .tab .ti { padding: 3px 12px; border-radius: 99px; transition: background .2s; }
     .tab.on { color: var(--accent); }
     .tab.on .ti { background: var(--accent-soft); }
 
@@ -281,7 +281,7 @@
       .mark { min-width: 86px; padding: 8px 8px; font-size: 13px; }
       .ptime { font-size: 13px; white-space: nowrap; }
       .ado { padding: 10px; font-size: 13px; }
-      .tab { font-size: 10px; } .tab .ti { padding: 3px 12px; }
+      .tab { font-size: 9.5px; letter-spacing: -.1px; } .tab .ti { padding: 3px 9px; } .tab svg { width: 22px; height: 22px; }
       .next .name, .next .count b { font-size: 19px; }
       .big { font-size: 30px; }
     }
