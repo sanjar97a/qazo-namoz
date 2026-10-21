@@ -10,7 +10,7 @@ const DAYS = 10;          // necha kun oldinga rejalashtiriladi (har ochilganda 
 const CHANNEL = 'namoz';
 
 export const isNative = () => Boolean(window.Capacitor?.isNativePlatform?.());
-const LN = () => window.Capacitor?.Plugins?.LocalNotifications;
+const LN = () => window.Capacitor?.Plugins?.LocalNotifications || window.Capacitor?.registerPlugin?.('LocalNotifications');
 
 export const notifyStatus = { permission: 'unknown', exact: 'unknown' };
 

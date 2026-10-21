@@ -73,7 +73,8 @@ export function qiblaSunTimes(lat, lng, day = new Date()) {
   return out;
 }
 
-// Kompas: Android (deviceorientationabsolute), iOS (webkitCompassHeading). Magnit yo'nalish qaytaradi.
+// Kompas. Android ilovada — native sensor (CompassPlugin), saytda — brauzer hodisalari.
+// onHeading(magnitYo'nalish, aniqlik 0..3 yoki -1, tekisMi)
 export function startCompass(onHeading, onUnavailable) {
   let got = false, stopped = false, last = null;
   const smooth = (h) => {
@@ -81,6 +82,19 @@ export function startCompass(onHeading, onUnavailable) {
     last = norm(last + diff(h, last) * 0.18); // aylana bo'yicha silliqlash
     return last;
   };
+  const cap = window.Capacitor;
+  const NC = cap?.isNativePlatform?.() ? (cap.Plugins?.Compass || cap.registerPlugin?.('Compass')) : null;
+  if (NC) {
+    let handle = null;
+    Promise.resolve(NC.addListener('heading', (d) => {
+      if (stopped || typeof d?.heading !== 'number') return;
+      got = true;
+      onHeading(smooth(d.heading), typeof d.accuracy === 'number' ? d.accuracy : -1, d.flat !== false);
+    })).then((h) => { handle = h; });
+    Promise.resolve(NC.start()).catch(() => { if (!stopped) onUnavailable('nosensor'); });
+    const t = setTimeout(() => { if (!got && !stopped) onUnavailable('nosensor'); }, 4000);
+    return () => { stopped = true; clearTimeout(t); try { handle?.remove?.(); } catch {} try { NC.stop(); } catch {} };
+  }
   const screenAngle = () => (screen.orientation?.angle ?? window.orientation ?? 0);
   const handler = (e) => {
     let h = null;
@@ -88,7 +102,7 @@ export function startCompass(onHeading, onUnavailable) {
     else if (e.absolute && typeof e.alpha === 'number') h = norm(360 - e.alpha);
     if (h == null) return;
     got = true;
-    onHeading(smooth(norm(h + screenAngle())));
+    onHeading(smooth(norm(h + screenAngle())), -1, true);
   };
   const absEvt = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
   const attach = () => window.addEventListener(absEvt, handler, true);

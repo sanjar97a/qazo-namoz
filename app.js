@@ -35,7 +35,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '19';
+export const APP_VERSION = '20';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -700,6 +700,7 @@ function renderQibla() {
           <circle cx="120" cy="120" r="6" fill="var(--accent)"/>
         </svg>
       </div>
+      <div id="qAcc" class="q-acc"></div>
       <div id="qStatus" class="q-status">${compassState === 'nosensor' ? 'Bu qurilmada kompas topilmadi' : compassState === 'denied' ? 'Kompasga ruxsat berilmadi' : 'Kompas ishga tushmoqda…'}</div>
       <div class="q-nums">
         <div><b>${q.toFixed(1)}°</b><span>qibla (shimoldan)</span></div>
@@ -727,8 +728,12 @@ function renderQibla() {
 
   $app.querySelector('#qbBack').onclick = () => go('home');
   if (!compassStop && compassState === 'wait') {
-    compassStop = startCompass((h) => {
+    compassStop = startCompass((h, acc, flat) => {
       heading = h; compassState = 'ok';
+      const qa = document.getElementById('qAcc');
+      if (qa) qa.innerHTML = acc >= 0 && acc < 2
+        ? '⚠️ Kompas kalibrlanmagan — telefonni havoda <b>“8” shaklida</b> 3–4 marta aylantiring'
+        : !flat ? 'ℹ️ Telefon tik ushlangan — yo‘nalish orqa kamera tomonga qarab ko‘rsatiladi' : '';
       const t = angNorm(h + dec);
       const d = angDiff(q, t);
       const dial = document.getElementById('dial');
