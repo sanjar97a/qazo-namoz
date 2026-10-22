@@ -13,8 +13,9 @@
     (function () {
       var t = 'auto';
       try { t = localStorage.getItem('namoz-theme') || 'auto'; } catch (e) {}
-      var dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      var ok = ['light', 'dark', 'sand', 'kaaba', 'ramadan'];
+      var r = t === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : (ok.indexOf(t) >= 0 ? t : 'light');
+      document.documentElement.setAttribute('data-theme', r);
     })();
   </script>
   <style>
@@ -40,6 +41,39 @@
       --hero1: #0F5A42; --hero2: #08362A;
       --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
       --tab: rgba(12, 26, 20, .94);
+      color-scheme: dark;
+    }
+    [data-theme="sand"] {
+      --bg: #F3EBDD; --card: #FFFBF4; --card2: #EFE4D2; --line: #E2D3BA;
+      --text: #2B2116; --sub: #7A6A55;
+      --accent: #A0612B; --accent-ink: #FFFFFF; --accent-soft: #F3E3D2;
+      --gold: #A87A1E; --gold-bright: #D4A548; --gold-soft: #F6E9CC;
+      --red: #C2453A; --red-soft: #F8E2DD;
+      --hero1: #B7743A; --hero2: #7A4520;
+      --shadow: 0 1px 2px rgba(60, 40, 20, .06), 0 6px 18px rgba(60, 40, 20, .08);
+      --tab: rgba(255, 251, 244, .94);
+      color-scheme: light;
+    }
+    [data-theme="kaaba"] {
+      --bg: #0B0B0C; --card: #151517; --card2: #1E1E21; --line: #2C2B2E;
+      --text: #F1EEE6; --sub: #A39E92;
+      --accent: #D4AF37; --accent-ink: #141008; --accent-soft: #2B2513;
+      --gold: #E6C35C; --gold-bright: #F0CF6A; --gold-soft: #2A2414;
+      --red: #F07070; --red-soft: #3A1C1C;
+      --hero1: #1C1B1D; --hero2: #000000;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+      --tab: rgba(16, 16, 18, .95);
+      color-scheme: dark;
+    }
+    [data-theme="ramadan"] {
+      --bg: #120E24; --card: #1B1633; --card2: #251E44; --line: #33295A;
+      --text: #EEEAF8; --sub: #A59CC6;
+      --accent: #B88CFF; --accent-ink: #140E24; --accent-soft: #2E2450;
+      --gold: #E8B954; --gold-bright: #F2C964; --gold-soft: #2D2516;
+      --red: #FF7A8A; --red-soft: #3A1C2A;
+      --hero1: #3A2A7A; --hero2: #160F33;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 24px rgba(0, 0, 0, .3);
+      --tab: rgba(22, 17, 42, .95);
       color-scheme: dark;
     }
     /* eski nomlar (kodning ayrim joylari uchun) */
@@ -330,6 +364,153 @@
     .zikr .zt { font-style: italic; margin-top: 4px; }
     .zikr .zn { font-size: 13px; color: var(--sub); margin-top: 6px; }
     .lsrc { font-size: 12px; color: var(--sub); margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+    /* ===== v22: jonli osmon ===== */
+    .hero > *:not(.celest) { position: relative; z-index: 1; }
+    .hero.sky { background-size: 56px 56px, 100% 220%; animation: skyShift 40s ease-in-out infinite alternate; }
+    .sky-night { background-image: var(--pat), linear-gradient(180deg, #0A1430, #16244F 55%, #24346A); }
+    .sky-dawn { background-image: var(--pat), linear-gradient(180deg, #1E2A5A, #5B4A8E 50%, #D98468); }
+    .sky-morning { background-image: var(--pat), linear-gradient(180deg, #2A6DB3, #4C8FD0 55%, #E8B98A); }
+    .sky-day { background-image: var(--pat), linear-gradient(180deg, #1A64AB, #2F80C8 60%, #5AA2DE); }
+    .sky-golden { background-image: var(--pat), linear-gradient(180deg, #2D6AA6, #8C7A72 55%, #D9894A); }
+    .sky-dusk { background-image: var(--pat), linear-gradient(180deg, #2B1B4A, #8E3B5C 55%, #E0784A); }
+    .hero { --pat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.07' stroke-width='1'%3E%3Cpath d='M28 4l6.6 17.4L52 28l-17.4 6.6L28 52l-6.6-17.4L4 28l17.4-6.6z'/%3E%3Crect x='16' y='16' width='24' height='24'/%3E%3Ccircle cx='28' cy='28' r='5'/%3E%3C/g%3E%3C/svg%3E"); }
+    .sky-night::before, .sky-dawn::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+      background-image: radial-gradient(1.4px 1.4px at 12% 18%, #fff, transparent), radial-gradient(1px 1px at 28% 42%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 46% 12%, #fff, transparent), radial-gradient(1px 1px at 63% 33%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 78% 58%, #fff, transparent), radial-gradient(1px 1px at 88% 22%, #fff, transparent),
+        radial-gradient(1.2px 1.2px at 35% 70%, #fff, transparent), radial-gradient(1px 1px at 8% 62%, #fff, transparent),
+        radial-gradient(1px 1px at 55% 80%, #fff, transparent), radial-gradient(1.3px 1.3px at 93% 76%, #fff, transparent);
+      animation: twinkle 5s ease-in-out infinite alternate; }
+    .sky-dawn::before { opacity: .45; }
+    .celest { position: absolute; z-index: 0; pointer-events: none; border-radius: 50%; }
+    .sky-night .celest { width: 26px; height: 26px; top: calc(var(--top) + 16px); right: 104px; box-shadow: -7px 4px 0 0 #F6E7B0; transform: rotate(-20deg); opacity: .95; }
+    .sky-day .celest, .sky-morning .celest { width: 220px; height: 220px; top: -90px; right: -70px;
+      background: radial-gradient(circle, rgba(255,244,200,.55), rgba(255,244,200,.12) 45%, transparent 70%); }
+    .sky-golden .celest { width: 260px; height: 260px; bottom: -150px; right: -60px; background: radial-gradient(circle, rgba(255,196,120,.55), transparent 65%); }
+    .sky-dusk .celest { width: 280px; height: 280px; bottom: -190px; left: 50%; margin-left: -140px; background: radial-gradient(circle, rgba(255,150,90,.6), transparent 62%); }
+    .sky-dawn .celest { width: 300px; height: 300px; bottom: -220px; left: 50%; margin-left: -150px; background: radial-gradient(circle, rgba(255,190,140,.5), transparent 62%); }
+    .hero.sky .next { background: rgba(0,0,0,.18); border-color: rgba(255,255,255,.18); }
+    @keyframes skyShift { from { background-position: 0 0, 0 0; } to { background-position: 0 0, 0 100%; } }
+    @keyframes twinkle { from { opacity: .55; } to { opacity: 1; } }
+
+    /* Bosh sahifadagi jonli Qibla */
+    .hq { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 8px 5px; border-radius: 18px; flex: none;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); color: #fff; transition: box-shadow .3s, background .3s; }
+    .hq svg { width: 58px; height: 58px; transition: transform .15s linear; }
+    .hq-ring { fill: rgba(0,0,0,.18); stroke: rgba(255,255,255,.45); stroke-width: 1.5; }
+    .hq-tick { stroke: rgba(255,255,255,.6); stroke-width: 1.5; }
+    .hq-d { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .hq-l { font-size: 9.5px; letter-spacing: 1.2px; opacity: .8; }
+    .hq.ok { background: rgba(240,199,102,.28); border-color: var(--gold-bright); box-shadow: 0 0 0 3px rgba(240,199,102,.25); }
+
+    /* Qazo safari markazi */
+    .jcard { background: var(--card); border: 1px solid var(--line); border-radius: 26px; padding: 18px; margin-top: 16px; box-shadow: var(--shadow); text-align: center; }
+    .jc-l { font-size: 12px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 800; color: var(--gold); }
+    .jc-ring { width: 176px; height: 176px; margin: 12px auto 4px; }
+    .jc-ring .rt b { font-size: 36px; letter-spacing: -.5px; }
+    .jc-ring .rt span { font-size: 11px; letter-spacing: 1.2px; font-weight: 700; margin-top: 6px; display: block; }
+    .jc-track { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--sub); }
+    .jc-track .bar { flex: 1; margin: 0; }
+    .jc-track span:first-child { color: var(--accent); }
+    .jc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; font-size: 13px; }
+    .jc-meta div { background: var(--card2); border-radius: 14px; padding: 9px 6px; }
+    .jc-meta span { margin-right: 4px; } .jc-meta b { font-variant-numeric: tabular-nums; }
+    .jc-go { font-size: 17px; padding: 15px; border-radius: 16px; margin-top: 14px; letter-spacing: .3px; }
+    .jc-link { border: 0; background: none; color: var(--accent); font-size: 14px; padding: 12px 6px 2px; }
+    .jc-empty { color: var(--sub); font-size: 14px; line-height: 1.55; }
+    .ring svg circle.prog { transition: stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1); }
+    .anum { display: inline-block; font-variant-numeric: tabular-nums; }
+    span.anum[data-a] { font-size: inherit; letter-spacing: inherit; font-weight: inherit; color: inherit; margin: 0; display: inline-block; }
+    .anum.bump { animation: bump .5s ease-out; }
+    @keyframes bump { 0% { transform: scale(1); } 35% { transform: scale(1.25); color: var(--accent); } 100% { transform: scale(1); } }
+    .bar > i { transition: width .8s cubic-bezier(.2,.8,.2,1); }
+
+    /* Qazo yo'li xaritasi */
+    .jmap-wrap { margin-top: 10px; }
+    .jmap { width: 100%; height: auto; display: block; overflow: visible; }
+    .j-road { fill: none; stroke: var(--card2); stroke-width: 14; stroke-linecap: round; }
+    .j-dash { fill: none; stroke: var(--line); stroke-width: 2; stroke-dasharray: 2 7; stroke-linecap: round; }
+    .j-walk { fill: none; stroke: var(--accent); stroke-width: 6; stroke-linecap: round; }
+    .j-node { fill: var(--card); stroke: var(--line); stroke-width: 2.5; }
+    .j-node.on { fill: var(--gold-bright); stroke: var(--gold); }
+    .j-node.end { stroke: var(--gold-bright); }
+    .j-chk { fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .j-t { font-size: 13px; font-weight: 700; fill: var(--sub); }
+    .j-t.on { fill: var(--text); }
+    .j-s { font-size: 11px; fill: var(--accent); font-weight: 600; }
+    .j-here { fill: var(--accent); stroke: var(--card); stroke-width: 3; }
+    .j-pulse { fill: var(--accent); opacity: .35; transform-box: fill-box; transform-origin: center; animation: pulse 1.8s ease-out infinite; }
+    .j-me { font-size: 12px; font-weight: 800; fill: var(--accent); }
+    @keyframes pulse { from { transform: scale(.8); opacity: .5; } to { transform: scale(2.2); opacity: 0; } }
+
+    /* Focus rejimi */
+    #app.focus-mode { padding-top: calc(var(--top) + 10px); }
+    .focus { min-height: calc(100vh - var(--top) - var(--bottom) - 60px); display: flex; flex-direction: column; justify-content: center; text-align: center; position: relative; }
+    .fx { position: absolute; top: 0; right: 0; width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 18px; color: var(--sub); }
+    .f-ico { font-size: 44px; }
+    .f-l { font-size: 13px; letter-spacing: 2px; text-transform: uppercase; font-weight: 800; color: var(--gold); margin-top: 8px; }
+    .f-big { font-size: 64px; font-weight: 800; letter-spacing: -1px; margin: 4px 0 6px; font-variant-numeric: tabular-nums; }
+    .f-big span { font-size: 30px; color: var(--sub); font-weight: 700; }
+    .f-list { margin: 22px auto 0; width: 100%; max-width: 320px; text-align: left; }
+    .f-row { display: flex; justify-content: space-between; padding: 10px 14px; border-radius: 12px; font-size: 16px; }
+    .f-row b { color: var(--accent); }
+    .f-row.cur { background: var(--accent-soft); font-weight: 700; }
+    .f-cur { margin-top: 22px; }
+    .f-n { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--sub); font-weight: 700; }
+    .f-cn { font-size: 22px; font-weight: 800; margin: 4px 0; }
+    .f-do { font-size: 18px; padding: 17px; border-radius: 18px; margin-top: 18px; }
+
+    /* Mavzular */
+    .themes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .th { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; font-size: 13px; }
+    .th .sw { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); }
+    .th.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); color: var(--accent); }
+
+    /* Issiqlik xaritasi (kalendar va statistika) */
+    .l1 { background: var(--accent-soft); background: color-mix(in srgb, var(--accent) 24%, var(--card2)); }
+    .l2 { background: var(--accent-soft); background: color-mix(in srgb, var(--accent) 48%, var(--card2)); }
+    .l3 { background: var(--accent); background: color-mix(in srgb, var(--accent) 76%, var(--card2)); color: var(--accent-ink); }
+    .l4 { background: var(--accent); color: var(--accent-ink); }
+    .heat { display: grid; grid-template-columns: 20px repeat(12, 1fr); gap: 4px; align-items: center; }
+    .hw { font-size: 10px; color: var(--sub); }
+    .hc { display: block; aspect-ratio: 1; border-radius: 4px; padding: 0; border: 0; min-width: 0; }
+    .hc.l0 { background: var(--card2); } .hc.fut { background: transparent; border: 1px dashed var(--line); }
+    .heat-leg { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 12px; font-size: 11px; color: var(--sub); }
+    .heat-leg i { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+    .heat-leg i.l0 { background: var(--card2); }
+
+    /* Aqlli tahlil */
+    .ins { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; line-height: 1.5; }
+    .ins:last-child { border-bottom: 0; }
+    .ins > span { font-size: 18px; }
+
+    /* Medallar */
+    .medal-c { perspective: 700px; padding: 0; border-radius: 16px; background: var(--card2); border: 1px solid transparent; font-weight: 500; }
+    .medal-c.on { background: var(--gold-soft); border-color: var(--gold-bright); }
+    .m-in { display: grid; transition: transform .55s cubic-bezier(.3,.7,.3,1); transform-style: preserve-3d; height: 100%; }
+    .m-face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 12px 6px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+    .m-back { transform: rotateY(180deg); }
+    .medal-c.flip .m-in { transform: rotateY(180deg); }
+    .medal-c .bt { font-size: 12px; font-weight: 700; line-height: 1.25; }
+    .medal-c .bd { font-size: 11px; color: var(--sub); line-height: 1.3; }
+    .medal { position: relative; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; overflow: hidden;
+      background: radial-gradient(circle at 32% 26%, var(--m1), var(--m2) 55%, var(--m3));
+      box-shadow: inset 0 0 0 3px rgba(255,255,255,.35), inset 0 -5px 9px rgba(0,0,0,.28), 0 3px 8px rgba(0,0,0,.22); }
+    .medal::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; border: 1.5px dashed rgba(255,255,255,.55); }
+    .medal-c.on .medal::after { content: ""; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.55) 50%, transparent 60%);
+      animation: shine 4.5s ease-in-out infinite; }
+    .m-ic { font-size: 25px; position: relative; z-index: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
+    .medal-c.off .medal { filter: grayscale(1); opacity: .35; }
+    .medal-c.off .bt { color: var(--sub); }
+    .t-bronze { --m1: #F6D2AE; --m2: #C07A3E; --m3: #6E3C18; }
+    .t-silver { --m1: #FFFFFF; --m2: #B9C2CB; --m3: #5E6872; }
+    .t-gold { --m1: #FFF3BF; --m2: #E0B033; --m3: #8A620C; }
+    .t-platinum { --m1: #F7FAFC; --m2: #A9C0CF; --m3: #4A6476; }
+    .t-diamond { --m1: #ECFCFF; --m2: #7FD3F0; --m3: #2A79A9; }
+    .t-emerald { --m1: #CFF7E3; --m2: #2BB583; --m3: #08553E; }
+    @keyframes shine { 0%, 70% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
+
     @media (max-width: 370px) {
       #app { padding-left: 12px; padding-right: 12px; }
       .hero { margin: 0 -12px; padding-left: 16px; padding-right: 16px; }

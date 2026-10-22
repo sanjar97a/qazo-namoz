@@ -15,8 +15,10 @@ import { QAZO as Q_QAZO, START as Q_START, fetchArabic, pick, quoteById, quranUr
 import { LEARN_DISCLAIMER, LEARN_SECTIONS } from './learn.js';
 import { diff as angDiff, distanceToKaaba, magDeclination, norm as angNorm, qiblaBearing, qiblaSunTimes, startCompass, sunPosition } from './qibla.js';
 import {
-  MONTHS, WEEKDAYS, achievements, dayDone, finishPlans, goalStreak, journey, monthGrid, perPrayer, periodStats, recentPace, recordDone, streak, summary, totalDone,
+  MONTHS, WEEKDAYS, achievements, dayDone, finishPlans, goalStreak, heatLevel, heatWeeks, insights, journey, monthGrid, perPrayer, periodStats,
+  recentPace, recordDone, streak, summary, totalDone, unlockDates,
 } from './stats.js';
+import { journeySvg } from './journey.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
 const SUPPORT = {
@@ -35,7 +37,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '21';
+export const APP_VERSION = '22';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -110,9 +112,39 @@ function toast(msg, ms = 4500) {
 const THEME_KEY = 'namoz-theme';
 const getTheme = () => { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; } };
 const darkMQ = matchMedia('(prefers-color-scheme: dark)');
-const isDark = () => getTheme() === 'dark' || (getTheme() === 'auto' && darkMQ.matches);
+// [kalit, belgi, nomi, [asosiy rang, fon]]
+const THEMES = [
+  ['auto', '📱', 'Avto', null],
+  ['light', '🌿', 'Zumrad', ['#0E8A63', '#F4F2EA']],
+  ['dark', '🌙', 'Yarim tun', ['#2BB583', '#08130F']],
+  ['sand', '🪔', 'Iliq qum', ['#A0612B', '#F3EBDD']],
+  ['kaaba', '🕋', 'Ka’ba', ['#D4AF37', '#0B0B0C']],
+  ['ramadan', '✨', 'Ramazon', ['#B88CFF', '#120E24']],
+];
+const DARK_THEMES = ['dark', 'kaaba', 'ramadan'];
+const resolvedTheme = () => {
+  const t = getTheme();
+  if (t === 'auto') return darkMQ.matches ? 'dark' : 'light';
+  return THEMES.some((x) => x[0] === t) ? t : 'light';
+};
+const isDark = () => DARK_THEMES.includes(resolvedTheme());
+
+// Jonli osmon: bosh sahifa foni namoz vaqtiga qarab o'zgaradi
+const SKY_KEY = 'namoz-sky';
+const skyOn = () => { try { return localStorage.getItem(SKY_KEY) !== 'off'; } catch { return true; } };
+const SKY_TOP = { night: '#0A1430', dawn: '#1E2A5A', morning: '#2A6DB3', day: '#1A64AB', golden: '#2D6AA6', dusk: '#2B1B4A' };
+const SKY_NAME = { night: 'Xufton — yulduzli tun', dawn: 'Bomdod — tong', morning: 'Tong — quyosh chiqdi', day: 'Peshin — yorug‘ kun', golden: 'Asr — oltin soat', dusk: 'Shom — quyosh botishi' };
+let skyNow = null;
+function skyPhase(now, t) {
+  if (now < t.fajr || now >= t.isha) return 'night';
+  if (now < t.sunrise.getTime() + 20 * 60000) return 'dawn';
+  if (now < t.dhuhr) return 'morning';
+  if (now < t.asr) return 'day';
+  if (now < t.maghrib) return 'golden';
+  return 'dusk';
+}
 function applyTheme() {
-  document.documentElement.setAttribute('data-theme', isDark() ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', resolvedTheme());
   applyBars();
 }
 function setTheme(t) {
@@ -127,7 +159,8 @@ function applyBars() {
   const hero = state.settings && screen === 'home';
   const lightIcons = hero || isDark();
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = hero ? '#0E8A63' : getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#F4F2EA';
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  if (meta) meta.content = hero ? (skyOn() && skyNow ? SKY_TOP[skyNow] : css('--hero1') || '#0E8A63') : css('--bg') || '#F4F2EA';
   try { window.Capacitor?.Plugins?.SystemBars?.setStyle({ style: lightIcons ? 'DARK' : 'LIGHT' }); } catch {}
 }
 
@@ -231,6 +264,8 @@ function tabbarHtml() {
 }
 function go(to) {
   if (screen === 'qibla' && to !== 'qibla') stopQibla();
+  if (screen === 'home' && to !== 'home') stopHomeCompass();
+  if (screen === 'focus' && to !== 'focus') { try { wakeLock?.release(); } catch {} wakeLock = null; }
   if (screen === 'settings' && to !== 'settings') applyOfficial(state.settings);
   screen = to; form = null; render();
 }
@@ -250,19 +285,53 @@ function render() {
   else if (screen === 'learn') renderLearn();
   else if (screen === 'quote') renderQuote();
   else if (screen === 'qibla') renderQibla();
+  else if (screen === 'focus') { renderFocus(); $app.classList.add('no-tabs', 'focus-mode'); }
   else { renderHome(); $app.classList.add('has-hero'); }
   if (changed) $app.classList.add('fade');
-  if (newVersion) {
+  if (newVersion && screen !== 'focus') {
     const html = `<div class="update"><span class="grow">🔄 Yangi versiya mavjud</span><button id="doUpdate">Yangilash</button></div>`;
     const hero = $app.querySelector('.hero');
     if (hero) hero.insertAdjacentHTML('afterend', html); else $app.insertAdjacentHTML('afterbegin', html);
     $app.querySelector('#doUpdate').onclick = applyUpdate;
   }
-  if (state.settings) {
+  if (state.settings && screen !== 'focus') {
     $app.insertAdjacentHTML('beforeend', tabbarHtml());
     $app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => go(b.dataset.tab); });
   }
+  animateValues();
   applyBars();
+}
+
+/* ---------------- Mikro-animatsiyalar: raqam sanaladi, progress silliq to'ladi ---------------- */
+const prevVals = {};
+const an = (key, n) => `<span class="anum" data-a="${key}" data-v="${Number(n) || 0}">${num(n)}</span>`;
+function animateValues() {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $app.querySelectorAll('[data-a]').forEach((el) => {
+    const k = el.dataset.a, v = Number(el.dataset.v), p = prevVals[k];
+    prevVals[k] = v;
+    if (reduce || p == null || p === v) return;
+    if (el.classList.contains('anum')) {
+      const t0 = performance.now(), dur = 650;
+      const step = (t) => {
+        const x = Math.min(1, (t - t0) / dur), e = 1 - (1 - x) ** 3;
+        el.textContent = num(Math.round(p + (v - p) * e));
+        if (x < 1) requestAnimationFrame(step);
+      };
+      el.textContent = num(p);
+      requestAnimationFrame(step);
+      el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+    } else if (el.dataset.c) {
+      const c = Number(el.dataset.c);
+      el.style.transition = 'none'; el.style.strokeDashoffset = c * (1 - p / 100);
+      el.getBoundingClientRect();
+      el.style.transition = ''; el.style.strokeDashoffset = c * (1 - v / 100);
+    } else {
+      el.style.transition = 'none'; el.style.width = `${p}%`;
+      void el.offsetWidth;
+      el.style.transition = ''; el.style.width = `${v}%`;
+    }
+  });
 }
 
 /* ---------------- Yangilanish ---------------- */
@@ -317,16 +386,20 @@ function sourceText(t, s) {
 }
 
 /* ---------------- Umumiy bloklar ---------------- */
-function ringSvg(value, max, size = 108, stroke = 10) {
+function ringSvg(value, max, size = 108, stroke = 10, key = '') {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const pct = max > 0 ? Math.min(1, value / max) : 0;
+  const anim = key ? `class="prog" data-a="${key}" data-v="${Math.round(pct * 1000) / 10}" data-c="${c}"` : '';
   return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
     <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--card2)" stroke-width="${stroke}"/>
-    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${pct >= 1 ? 'var(--gold-bright)' : 'var(--accent)'}" stroke-width="${stroke}"
+    <circle ${anim} cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${pct >= 1 ? 'var(--gold-bright)' : 'var(--accent)'}" stroke-width="${stroke}"
       stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - pct)}"/></svg>`;
 }
-const bar = (value, max, thin) => `<div class="bar${thin ? ' thin' : ''}"><i style="width:${max > 0 ? Math.min(100, (value / max) * 100) : 0}%"></i></div>`;
+const bar = (value, max, thin, key = '') => {
+  const w = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  return `<div class="bar${thin ? ' thin' : ''}"><i ${key ? `data-a="${key}" data-v="${Math.round(w * 10) / 10}"` : ''} style="width:${w}%"></i></div>`;
+};
 
 // Keyingi namoz va hozirgi namoz
 function nextPrayer(now, s) {
@@ -358,6 +431,12 @@ function renderHome() {
   const st = streak(state, now);
   const hour = now.getHours();
   const greet = hour < 11 ? 'Xayrli tong' : hour < 17 ? 'Assalomu alaykum' : 'Xayrli kech';
+  skyNow = skyPhase(now, times);
+  const sky = skyOn() ? `sky sky-${skyNow}` : '';
+  const lat = Number(s.lat), lng = Number(s.lng);
+  const q = qiblaBearing(lat, lng);
+  const dec = magDeclination(lat, lng);
+  const j = journey(state);
 
   const prayers = activePrayers(s).map((p) => {
     const w = windows[p];
@@ -383,17 +462,15 @@ function renderHome() {
   }).join('');
 
   $app.innerHTML = `
-    <header class="hero">
+    <header class="hero ${sky}" ${sky ? `title="${SKY_NAME[skyNow]}"` : ''}>
+      ${sky ? '<span class="celest" aria-hidden="true"></span>' : ''}
       <div class="row">
         <div class="grow">
           <div class="sub">${greet}</div>
           <h1>${esc(s.name) || 'Do‘stim'}</h1>
           <div class="sub">📍 ${esc(s.city)} · ${fmtDate(day)}</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
-          <button class="qibla-btn" id="toQibla" aria-label="Qibla">🧭 Qibla</button>
-          ${st.current ? `<div class="pill" style="background:rgba(255,255,255,.14);color:#fff">🔥 ${st.current} kun</div>` : ''}
-        </div>
+        ${homeCompassHtml(q)}
       </div>
       ${nx ? `<div class="next">
         <div class="grow">
@@ -403,6 +480,7 @@ function renderHome() {
         <div class="count"><b>${untilText(nx.at - now)}</b><span>qoldi</span></div>
       </div>` : ''}
     </header>
+    ${journeyCardHtml(j, sm, st)}
     ${installHtml(false)}
     ${s.excused ? `<div class="install-card" style="border-color:var(--gold-bright)">
       <div class="ic-title">🌸 Uzrli kunlar rejimi yoqilgan</div>
@@ -421,16 +499,6 @@ function renderHome() {
       Vaqti tugaguncha “O‘qidim” bosilmasa, namoz avtomatik qazo hisobiga qo‘shiladi.
       O‘qib, belgilashni unutgan bo‘lsangiz — “Qazo ↺” ni bosing.</p>
 
-    <div class="card">
-      <div class="card-head"><h2>Bugungi qazo rejasi</h2><span class="pill ${sm.goal && sm.today >= sm.goal ? 'green' : ''}">${sm.today} / ${sm.goal}</span></div>
-      ${bar(sm.today, sm.goal)}
-      <div class="row" style="margin-top:10px">
-        <div class="grow sub">Jami qoldi: <b style="color:var(--text)">${num(sm.remaining)}</b></div>
-        <div class="sub">${sm.pct}% ado qilindi</div>
-      </div>
-      <button class="btn primary" id="toQazo">Qazo ado qilish →</button>
-    </div>
-
     ${(() => { const dq = todayQuote(); return `<button class="quote-card" id="toQuote">
       <div class="qc-l">${dq.ayah ? '📖 Kun oyati' : '🌿 Kun hadisi'}</div>
       <div class="qc-t">«${esc(dq.text)}»</div>
@@ -442,7 +510,9 @@ function renderHome() {
 
   $app.querySelector('#toQibla').onclick = () => go('qibla');
   $app.querySelector('#toQuote').onclick = () => openQuote(todayQuote().id);
-  $app.querySelector('#toQazo').onclick = () => go('qazo');
+  $app.querySelector('#startFocus')?.addEventListener('click', openFocus);
+  $app.querySelector('#toMap')?.addEventListener('click', () => go('qazo'));
+  startHomeCompass(q, dec);
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
   });
@@ -454,6 +524,114 @@ function renderHome() {
   }
   const ex = $app.querySelector('#exOff');
   if (ex) ex.onclick = () => setExcused(false);
+}
+
+// Bosh sahifadagi asosiy markaz: "Qazo safaringiz" halqasi
+function journeyCardHtml(j, sm, st) {
+  if (!j.start) {
+    return `<div class="jcard">
+      <div class="jc-l">🕌 Qazo safaringiz</div>
+      <p class="jc-empty">Qazo hisobingiz bo‘sh. Vaqtida o‘qilmagan namozlar shu yerda paydo bo‘ladi.<br>
+        Eski qazolaringiz bo‘lsa — Qazo bo‘limida <b>⋯ → ＋</b> orqali kiriting.</p>
+      <button class="btn" id="toMap">Qazo bo‘limi →</button></div>`;
+  }
+  const doneAll = j.left === 0;
+  return `<div class="jcard">
+    <div class="jc-l">🕌 Qazo safaringiz</div>
+    <div class="ring jc-ring">${ringSvg(j.done, j.start, 176, 13, 'j-ring')}
+      <div class="rt"><div>${doneAll ? '<b>🌙</b><span>Alhamdulillah!</span>' : `<b>${an('left', j.left)}</b><span>QAZO QOLDI</span>`}</div></div></div>
+    <div class="jc-track"><span>${j.pct}%</span>${bar(j.done, j.start, true, 'j-bar')}<span>100%</span></div>
+    <div class="jc-meta">
+      <div><span>🔥</span><b>${st.current}</b> kunlik streak</div>
+      <div><span>🎯</span>Bugungi reja <b>${an('today', sm.today)} / ${sm.goal}</b></div>
+    </div>
+    ${bar(sm.today, sm.goal, true, 'today-bar')}
+    ${doneAll ? '' : `<button class="btn primary jc-go" id="startFocus">▶ Qazoni boshlash</button>`}
+    <button class="jc-link" id="toMap">🗺 Yo‘l xaritasi · ${num(j.done)} / ${num(j.start)} ›</button>
+  </div>`;
+}
+
+// Bosh sahifadagi jonli Qibla kompasi
+let hcStop = null, hcHead = null, hcState = 'wait';
+function homeCompassHtml(q) {
+  const ok = hcHead != null && Math.abs(angDiff(q, hcHead)) <= 5;
+  return `<button class="hq ${ok ? 'ok' : ''}" id="toQibla" aria-label="Qibla ${Math.round(q)} daraja — Qibla sahifasini ochish">
+    <svg id="hqDial" viewBox="0 0 64 64" style="transform:rotate(${hcHead == null ? 0 : -hcHead}deg)" aria-hidden="true">
+      <circle cx="32" cy="32" r="29" class="hq-ring"/>
+      ${[0, 90, 180, 270].map((a) => `<line x1="32" y1="4" x2="32" y2="9" class="hq-tick" transform="rotate(${a} 32 32)"/>`).join('')}
+      <path d="M32 2.5 l3.5 6 h-7z" fill="#FF6B6B"/>
+      <g transform="rotate(${q} 32 32)">
+        <line x1="32" y1="32" x2="32" y2="20" stroke="var(--gold-bright)" stroke-width="2.5" stroke-linecap="round"/>
+        <rect x="26" y="9" width="12" height="12" rx="2" fill="#111" stroke="var(--gold-bright)" stroke-width="1.5"/>
+        <line x1="26" y1="12.5" x2="38" y2="12.5" stroke="var(--gold-bright)" stroke-width="1.6"/>
+      </g>
+      <circle cx="32" cy="32" r="2.6" fill="#fff"/>
+    </svg>
+    <span class="hq-d">${Math.round(q)}°</span><span class="hq-l">QIBLA</span>
+  </button>`;
+}
+function stopHomeCompass() { hcStop?.(); hcStop = null; }
+function startHomeCompass(q, dec) {
+  if (hcStop || hcState === 'none') return;
+  const iosAsk = typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function';
+  if (!isNative() && (iosAsk || !('ondeviceorientation' in window))) { hcState = 'none'; return; } // iOS: ruxsat faqat bosilganda so'raladi
+  hcStop = startCompass((h) => {
+    hcHead = angNorm(h + dec); hcState = 'ok';
+    const dial = document.getElementById('hqDial');
+    if (!dial) return;
+    dial.style.transform = `rotate(${-hcHead}deg)`;
+    document.getElementById('toQibla')?.classList.toggle('ok', Math.abs(angDiff(q, hcHead)) <= 5);
+  }, () => { hcState = 'none'; const st = hcStop; hcStop = null; st?.(); });
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopHomeCompass(); });
+
+/* ---------------- Focus rejimi: faqat qazo o'qish ---------------- */
+let focusP = null, wakeLock = null;
+function pickFocus(after) {
+  const order = activePrayers(state.settings);
+  const q = order.filter((p) => (state.qazo[p] || 0) > 0);
+  if (!q.length) return null;
+  if (after) {
+    const i = order.indexOf(after);
+    for (let k = 1; k <= order.length; k++) { const p = order[(i + k) % order.length]; if (q.includes(p)) return p; }
+  }
+  const td = state.done?.[dayKey(new Date())] || {};
+  return q.reduce((b, p) => ((td[p] || 0) < (td[b] || 0) ? p : b), q[0]);
+}
+function openFocus() {
+  focusP = pickFocus();
+  go('focus');
+  try { navigator.wakeLock?.request('screen').then((l) => { wakeLock = l; }).catch(() => {}); } catch {}
+}
+function renderFocus() {
+  const now = new Date();
+  const sm = summary(state, now);
+  const td = state.done?.[dayKey(now)] || {};
+  if (!focusP || !((state.qazo[focusP] || 0) > 0)) focusP = pickFocus(focusP);
+  const list = activePrayers(state.settings).filter((p) => (state.qazo[p] || 0) > 0 || td[p]);
+  const met = sm.goal && sm.today >= sm.goal;
+  $app.innerHTML = `<div class="focus">
+    <button class="fx" id="fxExit" aria-label="Focus rejimidan chiqish">✕</button>
+    <div class="f-ico">🕌</div>
+    <div class="f-l">Bugungi qazo</div>
+    <div class="f-big">${an('today', sm.today)}<span> / ${sm.goal}</span></div>
+    ${bar(sm.today, sm.goal, false, 'today-bar')}
+    ${met ? '<div class="finish">🎉 Bugungi reja bajarildi. Alloh qabul qilsin! Xohlasangiz davom eting.</div>' : ''}
+    <div class="f-list">${list.map((p) => `<div class="f-row ${p === focusP ? 'cur' : ''}">
+      <span>${ICONS[p]} ${NAMES[p]}</span><b>${td[p] ? `✓${td[p] > 1 ? ` ${td[p]}` : ''}` : '○'}</b></div>`).join('')}</div>
+    ${focusP ? `<div class="f-cur"><div class="f-n">Navbatdagi</div>
+        <div class="f-cn">${ICONS[focusP]} ${NAMES[focusP]} qazosi</div>
+        <div class="sub">qoldi: ${an(`q-${focusP}`, state.qazo[focusP])}</div></div>
+      <button class="btn primary f-do" id="fxDone">✓ Ado qildim</button>
+      <button class="btn" id="fxNext">Keyingisi →</button>`
+      : '<div class="finish">Qazo qolmagan — Alhamdulillah 🌙</div>'}
+    <p class="hint" style="text-align:center;margin-top:16px">Chalg‘itmaslik uchun boshqa tugmalar yashirildi, ekran o‘chmaydi.<br>Namozni o‘qib bo‘lgach “Ado qildim”ni bosing.</p>
+  </div>`;
+  $app.querySelector('#fxExit').onclick = () => go('home');
+  const d = $app.querySelector('#fxDone');
+  if (d) d.onclick = () => { const p = focusP; focusP = pickFocus(p); doneAction(p, 1); try { navigator.vibrate?.(25); } catch {} };
+  const n = $app.querySelector('#fxNext');
+  if (n) n.onclick = () => { focusP = pickFocus(focusP); render(); };
 }
 
 // Xato qazoga tushgan namozni tuzatish
@@ -487,6 +665,7 @@ function doneAction(p, n, mode) {
     return toast(`${NAMES[p]}: qazo hisobiga +${n} qo‘shildi`);
   }
   next = recordDone(state, p, n, now);
+  if (next !== state && leftBefore > 0 && totalQazo(next) === 0) next = { ...next, clearedAt: Date.now() };
   if (next === state) return toast(n > 0 ? `${NAMES[p]} bo‘yicha qazo qolmagan.` : `Bugun ${NAMES[p]} bo‘yicha bekor qiladigan narsa yo‘q.`);
   save(next);
   if (n < 0) return toast(`Bekor qilindi: ${NAMES[p]} ${-n} ta`);
@@ -599,7 +778,7 @@ function renderQazo() {
       <div class="p-ico">${ICONS[p]}</div>
       <div class="grow">
         <div class="pname">${NAMES[p]}</div>
-        <div class="row" style="gap:8px"><span class="qn">${num(state.qazo[p])}</span><span class="sub">qoldi</span>
+        <div class="row" style="gap:8px"><span class="qn">${an(`q-${p}`, state.qazo[p])}</span><span class="sub">qoldi</span>
           ${todayDone[p] ? `<span class="today">· bugun ${todayDone[p]} ✓</span>` : ''}</div>
       </div>
       <button class="ado" data-ado="${p}" ${(state.qazo[p] || 0) <= 0 ? 'disabled' : ''}>✓ Ado qildim</button>
@@ -611,7 +790,7 @@ function renderQazo() {
 
     <div class="card" style="margin-top:0">
       <div class="row" style="gap:16px">
-        <div class="ring">${ringSvg(sm.today, sm.goal)}<div class="rt"><div><b>${sm.today}</b><span>/ ${sm.goal}</span></div></div></div>
+        <div class="ring">${ringSvg(sm.today, sm.goal, 108, 10, 'today-ring')}<div class="rt"><div><b>${an('today', sm.today)}</b><span>/ ${sm.goal}</span></div></div></div>
         <div class="grow">
           <h2 style="margin:0">Bugungi reja</h2>
           <div class="sub" style="margin:4px 0 10px">Bugun nechta qazo ado qilasiz?</div>
@@ -621,13 +800,13 @@ function renderQazo() {
       ${sm.goal && sm.today >= sm.goal ? '<div class="finish">🎉 Bugungi maqsad bajarildi</div>' : ''}
     </div>
 
-    ${(() => { const j = journey(state); return `<div class="card">
-      <div class="card-head"><h2>🧭 Qazo safaringiz</h2><span class="pill green">${j.pct}%</span></div>
+    ${(() => { const j = journey(state); return `<div class="card" id="mapCard">
+      <div class="card-head"><h2>🗺 Qazo yo‘li</h2><span class="pill green">${j.pct}%</span></div>
       <div class="q-nums" style="margin-top:0">
         <div><b>${num(j.start)}</b><span>boshlanishda</span></div>
-        <div><b style="color:var(--accent)">${num(j.done)}</b><span>ado qilindi</span></div>
-        <div><b>${num(j.left)}</b><span>qoldi</span></div></div>
-      ${bar(j.done, j.start)}`; })()}
+        <div><b style="color:var(--accent)">${an('done', j.done)}</b><span>ado qilindi</span></div>
+        <div><b>${an('left', j.left)}</b><span>qoldi</span></div></div>
+      ${j.start ? `<div class="jmap-wrap">${journeySvg(j.start, j.done, num)}</div>` : ''}`; })()}
       ${finish ? `<div class="finish">Kuniga ${sm.goal} tadan — taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
       <p class="hint">“Boshlanishda” — ilovaga kiritilgan va keyin qo‘shilgan barcha qazolar.</p>
     </div>
@@ -836,11 +1015,18 @@ function renderStats() {
   $app.innerHTML = `
     <div class="page-title">Statistika</div>
     <div class="tiles">
-      <div class="tile"><div class="v">${sm.today}<span class="sub" style="font-size:15px"> / ${sm.goal}</span></div><div class="k">Bugun</div></div>
-      <div class="tile"><div class="v">${num(sm.week)}</div><div class="k">Bu hafta</div></div>
-      <div class="tile"><div class="v">${num(sm.month)}</div><div class="k">${MONTHS[now.getMonth()]} oyida</div></div>
-      <div class="tile"><div class="v">${num(sm.total)}</div><div class="k">Jami ado qilingan</div></div>
+      <div class="tile"><div class="v">${an('today', sm.today)}<span class="sub" style="font-size:15px"> / ${sm.goal}</span></div><div class="k">Bugun</div></div>
+      <div class="tile"><div class="v">${an('week', sm.week)}</div><div class="k">Bu hafta</div></div>
+      <div class="tile"><div class="v">${an('month', sm.month)}</div><div class="k">${MONTHS[now.getMonth()]} oyida</div></div>
+      <div class="tile"><div class="v">${an('done', sm.total)}</div><div class="k">Jami ado qilingan</div></div>
     </div>
+
+    <div class="card insight">
+      <h2>🧠 Tahlil</h2>
+      ${insights(state, now).map((x) => `<div class="ins"><span>${x.icon}</span><div>${x.text}</div></div>`).join('')}
+    </div>
+
+    ${heatHtml(now, sm.goal)}
 
     <div class="card">
       <div class="card-head"><h2>Umumiy progress</h2><b style="color:var(--accent);font-size:20px">${sm.pct}%</b></div>
@@ -891,13 +1077,39 @@ function renderStats() {
     </div>
 
     <div class="section">Yutuqlar <span class="sub" style="font-weight:600">${unlocked} / ${ach.length}</span></div>
-    <div class="ach">${ach.map((a) => `
-      <div class="badge ${a.unlocked ? 'on' : 'off'}">
-        <div class="bi">${a.icon}</div><div class="bt">${a.title}</div>
-        <div class="bd">${a.unlocked ? a.desc : `${num(a.value)} / ${num(a.need)}`}</div>
-      </div>`).join('')}</div>
-    <p class="hint">Statistika ilovaning 10-versiyasidan boshlab yuritiladi.</p>`;
+    <div class="ach">${(() => { const ud = unlockDates(state, now); return ach.map((a) => {
+      const k = a.id === 'clear' ? (state.clearedAt ? dayKey(new Date(state.clearedAt)) : null) : ud[a.id];
+      return `<button class="medal-c ${a.unlocked ? 'on' : 'off'} t-${a.tier}" data-medal aria-label="${esc(a.title)}: ${a.unlocked ? 'qo‘lga kiritildi' : 'hali yopiq'}. Orqa tomonini ko‘rish">
+        <span class="m-in">
+          <span class="m-face"><span class="medal"><span class="m-ic">${a.icon}</span></span>
+            <span class="bt">${a.title}</span><span class="bd">${a.unlocked ? TIER[a.tier] : `${num(a.value)} / ${num(a.need)}`}</span></span>
+          <span class="m-face m-back"><span class="bt">${a.desc}</span>
+            <span class="bd">${a.unlocked ? (k ? longDate(k) : 'Qo‘lga kiritildi') : `Yana ${num(a.need - a.value)} — ${TIER[a.tier]} medal`}</span></span>
+        </span></button>`; }).join(''); })()}</div>
+    <p class="hint">Medalni bossangiz — orqa tomonida qachon olinganini ko‘rasiz. Statistika ilovaning 10-versiyasidan boshlab yuritiladi.</p>`;
   $app.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { statPeriod = b.dataset.period; render(); }; });
+  $app.querySelectorAll('[data-medal]').forEach((b) => { b.onclick = () => b.classList.toggle('flip'); });
+  $app.querySelectorAll('[data-hday]').forEach((b) => { b.onclick = () => {
+    const d = new Date(`${b.dataset.hday}T12:00:00`); cal = { y: d.getFullYear(), m: d.getMonth(), sel: b.dataset.hday }; go('calendar'); }; });
+}
+
+const TIER = { bronze: 'bronza', silver: 'kumush', gold: 'oltin', platinum: 'platina', diamond: 'olmos', emerald: 'zumrad' };
+const longDate = (k) => { const d = new Date(`${k}T12:00:00`); return `${d.getFullYear()}-yil ${d.getDate()}-${MONTHS[d.getMonth()].toLowerCase()}`; };
+const heatLegend = () => `<div class="heat-leg"><span>Kam</span>${[0, 1, 2, 3, 4].map((l) => `<i class="l${l}"></i>`).join('')}<span>Ko‘p</span></div>`;
+
+// GitHub uslubidagi muntazamlik xaritasi
+function heatHtml(now, goal) {
+  const hw = heatWeeks(state, now, 12);
+  const days = hw.flat().filter((x) => x.n != null);
+  const active = days.filter((x) => x.n > 0).length;
+  return `<div class="card">
+    <div class="card-head"><h2>🗓 Muntazamlik</h2><span class="sub">oxirgi 12 hafta · ${active}/${days.length} kun</span></div>
+    <div class="heat">${WEEKDAYS.map((w, i) => `<span class="hw">${i % 2 ? '' : w}</span>${hw.map((wk) => {
+      const c = wk[i];
+      return c.n == null ? '<i class="hc fut"></i>'
+        : `<button class="hc l${heatLevel(c.n, goal)}" data-hday="${c.key}" aria-label="${c.key}: ${c.n} ta"></button>`; }).join('')}`).join('')}</div>
+    ${heatLegend()}
+  </div>`;
 }
 
 /* ---------------- Kalendar ---------------- */
@@ -913,7 +1125,7 @@ function renderCalendar() {
     const k = dayKey(d);
     const n = dayDone(state, k);
     monthTotal += n; if (n) active++;
-    const cls = [n && goal && n >= goal ? 'full' : n ? 'part' : '', k === todayKey ? 'today' : '', k === cal.sel ? 'sel' : '', k > todayKey ? 'future' : ''].join(' ');
+    const cls = [`l${heatLevel(n, goal)}`, k === todayKey ? 'today' : '', k === cal.sel ? 'sel' : '', k > todayKey ? 'future' : ''].join(' ');
     return `<button class="cell ${cls}" data-day="${k}">${d.getDate()}${n ? `<small>${n}</small>` : ''}</button>`;
   }).join('');
 
@@ -933,11 +1145,8 @@ function renderCalendar() {
         <button id="calNext" aria-label="Keyingi oy">›</button>
       </div>
       <div class="cal">${WEEKDAYS.map((w) => `<div class="wd">${w}</div>`).join('')}${html}</div>
-      <div class="legend">
-        <span><i style="background:var(--accent)"></i>Maqsad bajarildi</span>
-        <span><i style="background:var(--gold-soft);border:1px solid var(--gold-bright)"></i>Qisman</span>
-        <span><i style="background:var(--card2)"></i>Ado qilinmagan</span>
-      </div>
+      ${heatLegend()}
+      <p class="hint" style="margin-top:4px">Rang qancha to‘q bo‘lsa — o‘sha kuni shuncha ko‘p qazo ado qilingan${goal ? ` (to‘q yashil — kunlik reja ${goal} ta bajarilgan)` : ''}.</p>
       <div class="row" style="margin-top:12px"><div class="grow sub">Bu oyda: <b style="color:var(--text)">${num(monthTotal)} ta</b> qazo</div>
         <div class="sub">${active} kun faol</div></div>
     </div>
@@ -1148,8 +1357,11 @@ function renderSettings() {
     <div class="page-title">Sozlamalar</div>
 
     <div class="section" style="margin-top:4px">Ko‘rinish</div>
-    <div class="seg">${[['auto', '📱 Avto'], ['light', '☀️ Yorug‘'], ['dark', '🌙 Qorong‘i']].map(([k, l]) =>
-      `<button data-theme-set="${k}" class="${getTheme() === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="themes">${THEMES.map(([k, ic, l, sw]) => `<button data-theme-set="${k}" class="th ${getTheme() === k ? 'on' : ''}" aria-pressed="${getTheme() === k}">
+      <span class="sw" style="background:${sw ? `linear-gradient(135deg, ${sw[1]} 50%, ${sw[0]} 50%)` : 'linear-gradient(135deg, #F4F2EA 50%, #08130F 50%)'}"></span>
+      <span>${ic} ${l}</span></button>`).join('')}</div>
+    <div class="switch"><span>🌌 Jonli osmon<br><span class="sub">Bosh sahifa foni namoz vaqtiga qarab o‘zgaradi: tong, kun, oltin soat, shom, yulduzli tun</span></span>
+      <input type="checkbox" id="skyT" ${skyOn() ? 'checked' : ''} /></div>
     ${installHtml(true)}
 
     <div class="section">Joylashuv</div>
@@ -1217,6 +1429,7 @@ function renderSettings() {
   if (ra) ra.onclick = () => { f.offsets = {}; render(); };
 
   $app.querySelectorAll('[data-theme-set]').forEach((b) => { b.onclick = () => setTheme(b.dataset.themeSet); });
+  $app.querySelector('#skyT').onchange = (e) => { try { localStorage.setItem(SKY_KEY, e.target.checked ? 'on' : 'off'); } catch {} };
   bindNotify(f);
   $app.querySelector('#shareBtn').onclick = shareApp;
   const cu = $app.querySelector('#checkUpd');
@@ -1422,7 +1635,7 @@ function onBack() {
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
   if (screen === 'support') return go('settings');
   if (screen === 'quote') return go(quoteFrom);
-  if (screen === 'qibla') return go('home');
+  if (screen === 'qibla' || screen === 'focus') return go('home');
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }

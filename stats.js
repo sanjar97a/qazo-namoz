@@ -130,22 +130,106 @@ export function journey(state) {
 }
 
 const ACH = [
-  { id: 'first', icon: '🌱', title: 'Birinchi qadam', desc: '1 ta qazo ado qilindi', kind: 'total', need: 1 },
-  { id: 't100', icon: '🏅', title: '100 talik', desc: '100 ta qazo ado qilindi', kind: 'total', need: 100 },
-  { id: 't500', icon: '🥈', title: '500 talik', desc: '500 ta qazo', kind: 'total', need: 500 },
-  { id: 't1000', icon: '🥇', title: '1000 talik', desc: '1 000 ta qazo', kind: 'total', need: 1000 },
-  { id: 't5000', icon: '🏆', title: '5000 talik', desc: '5 000 ta qazo', kind: 'total', need: 5000 },
-  { id: 't10000', icon: '👑', title: '10 000 talik', desc: '10 000 ta qazo', kind: 'total', need: 10000 },
-  { id: 'goal', icon: '🎯', title: 'Maqsadga yetdim', desc: 'Bir kunda kunlik maqsad bajarildi', kind: 'goalDays', need: 1 },
-  { id: 'g10', icon: '🎯', title: '10 kun reja', desc: '10 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 10 },
-  { id: 'g30', icon: '🏹', title: '30 kun reja', desc: '30 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 30 },
-  { id: 'g100', icon: '⭐', title: '100 kun reja', desc: '100 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 100 },
-  { id: 's7', icon: '🔥', title: '7 kun', desc: '7 kun ketma-ket', kind: 'streak', need: 7 },
-  { id: 's30', icon: '🔥', title: '30 kun', desc: '30 kun ketma-ket', kind: 'streak', need: 30 },
-  { id: 's100', icon: '💎', title: '100 kun', desc: '100 kun ketma-ket', kind: 'streak', need: 100 },
-  { id: 'ontime', icon: '🕌', title: 'O‘z vaqtida', desc: 'Bir kunda 5 vaqt namoz o‘z vaqtida o‘qildi', kind: 'onTimeDays', need: 1 },
-  { id: 'clear', icon: '🌙', title: 'Qazo tugadi', desc: 'Barcha qazolar ado qilindi', kind: 'clear', need: 1 },
+  { id: 'first', tier: 'bronze', icon: '🌱', title: 'Birinchi qadam', desc: '1 ta qazo ado qilindi', kind: 'total', need: 1 },
+  { id: 't100', tier: 'bronze', icon: '🏅', title: '100 talik', desc: '100 ta qazo ado qilindi', kind: 'total', need: 100 },
+  { id: 't500', tier: 'silver', icon: '🥈', title: '500 talik', desc: '500 ta qazo', kind: 'total', need: 500 },
+  { id: 't1000', tier: 'gold', icon: '🥇', title: '1000 talik', desc: '1 000 ta qazo', kind: 'total', need: 1000 },
+  { id: 't5000', tier: 'platinum', icon: '🏆', title: '5000 talik', desc: '5 000 ta qazo', kind: 'total', need: 5000 },
+  { id: 't10000', tier: 'diamond', icon: '👑', title: '10 000 talik', desc: '10 000 ta qazo', kind: 'total', need: 10000 },
+  { id: 'goal', tier: 'bronze', icon: '🎯', title: 'Maqsadga yetdim', desc: 'Bir kunda kunlik maqsad bajarildi', kind: 'goalDays', need: 1 },
+  { id: 'g10', tier: 'silver', icon: '🎯', title: '10 kun reja', desc: '10 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 10 },
+  { id: 'g30', tier: 'gold', icon: '🏹', title: '30 kun reja', desc: '30 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 30 },
+  { id: 'g100', tier: 'diamond', icon: '⭐', title: '100 kun reja', desc: '100 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 100 },
+  { id: 's7', tier: 'bronze', icon: '🔥', title: '7 kun', desc: '7 kun ketma-ket', kind: 'streak', need: 7 },
+  { id: 's30', tier: 'gold', icon: '🔥', title: '30 kun', desc: '30 kun ketma-ket', kind: 'streak', need: 30 },
+  { id: 's100', tier: 'diamond', icon: '💎', title: '100 kun', desc: '100 kun ketma-ket', kind: 'streak', need: 100 },
+  { id: 'ontime', tier: 'emerald', icon: '🕌', title: 'O‘z vaqtida', desc: 'Bir kunda 5 vaqt namoz o‘z vaqtida o‘qildi', kind: 'onTimeDays', need: 1 },
+  { id: 'clear', tier: 'emerald', icon: '🌙', title: 'Qazo tugadi', desc: 'Barcha qazolar ado qilindi', kind: 'clear', need: 1 },
 ];
+
+// Yutuq qachon qo'lga kiritilgani: tarix bo'yicha kunma-kun hisoblanadi
+export function unlockDates(state, now = new Date()) {
+  const goal = Number(state.settings?.dailyGoal) || 0;
+  const keys = [...new Set([...Object.keys(state.done || {}), ...Object.keys(state.log || {})])].sort();
+  const out = {};
+  if (!keys.length) return out;
+  const set = (id, key) => { if (!out[id]) out[id] = key; };
+  let cum = 0, run = 0, grun = 0, goalDays = 0, onTime = 0;
+  const end = dayKey(now);
+  for (let d = new Date(`${keys[0]}T12:00:00`); dayKey(d) <= end; d = addDays(d, 1)) {
+    const k = dayKey(d), n = dayDone(state, k);
+    cum += n;
+    run = n > 0 ? run + 1 : 0;
+    const met = goal && n >= goal;
+    grun = met ? grun + 1 : 0;
+    if (met) goalDays++;
+    if (PRAYERS.slice(0, 5).every((p) => state.log?.[k]?.[p] === 'prayed')) onTime++;
+    for (const a of ACH) {
+      const v = { total: cum, streak: run, goalDays, goalStreak: grun, onTimeDays: onTime }[a.kind];
+      if (v != null && v >= a.need) set(a.id, k);
+    }
+  }
+  return out;
+}
+
+const fmt1 = (x) => (Math.round(x * 10) / 10).toString();
+export function durationText(days) {
+  if (days < 45) return `${days} kun`;
+  if (days < 730) return `${Math.round(days / 30.4)} oy`;
+  return `${fmt1(days / 365)} yil`;
+}
+
+// "Aqlli tahlil" — oddiy statistik xulosalar (AI emas)
+export function insights(state, now = new Date()) {
+  const out = [];
+  const ws = weekStart(now);
+  const n = Math.round((noon(now) - ws) / 86400000) + 1; // haftaning nechanchi kuni
+  const week = rangeDone(state, ws, n);
+  const prev = rangeDone(state, addDays(ws, -7), n);    // o'tgan haftaning xuddi shu kunlari
+  const goal = Number(state.settings?.dailyGoal) || 0;
+  const pace = recentPace(state, now, 14);
+  const left = totalQazo(state);
+  if (week) out.push({ icon: '📊', text: `Bu hafta kuniga o‘rtacha <b>${fmt1(week / n)}</b> ta qazo ado qildingiz (jami ${week} ta).` });
+  if (week && prev) {
+    const ch = Math.round(((week - prev) / prev) * 100);
+    if (ch > 0) out.push({ icon: '🔥', text: `O‘tgan haftaning shu kunlariga nisbatan <b>${ch}% ko‘proq</b>. Barakalla!` });
+    else if (ch < 0) out.push({ icon: '📉', text: `O‘tgan haftaning shu kunlariga nisbatan <b>${-ch}% kamroq</b> — bugun biroz qo‘shsangiz, yetib olasiz.` });
+    else out.push({ icon: '⚖️', text: 'O‘tgan hafta bilan bir xil sur’atdasiz.' });
+  } else if (week && !prev) out.push({ icon: '🌱', text: 'O‘tgan haftaning shu kunlarida qazo o‘qilmagan edi — yaxshi boshlanish!' });
+  if (left && pace >= 0.3) {
+    const days = Math.ceil(left / pace);
+    out.push({ icon: '🎯', text: `Oxirgi 14 kundagi sur’atda (kuniga ${fmt1(pace)} ta) qolgan qazolar taxminan <b>${durationText(days)}</b>da tugaydi.` });
+  }
+  if (left && goal && pace >= 0.3) {
+    if (pace + 0.05 < goal) out.push({ icon: '💡', text: `Kunlik rejangiz ${goal} ta — rejaga yetish uchun kuniga yana <b>${fmt1(goal - pace)}</b> ta qo‘shish kerak.` });
+    else out.push({ icon: '⭐', text: `Kunlik rejangizni (${goal} ta) muntazam bajaryapsiz — shu tarzda davom eting.` });
+  }
+  const wd = Array(7).fill(0);
+  for (let i = 0; i < 28; i++) { const d = addDays(noon(now), -i); wd[(d.getDay() + 6) % 7] += dayDone(state, dayKey(d)); }
+  const max = Math.max(...wd);
+  if (max > 0 && wd.filter((v) => v > 0).length >= 3) {
+    out.push({ icon: '📅', text: `Oxirgi 4 haftada eng faol kuningiz — <b>${['dushanba', 'seshanba', 'chorshanba', 'payshanba', 'juma', 'shanba', 'yakshanba'][wd.indexOf(max)]}</b>.` });
+  }
+  if (!out.length) out.push({ icon: '🌱', text: 'Bir necha kun qazo o‘qing — shu yerda haftalik tahlil va tugash muddati paydo bo‘ladi.' });
+  return out;
+}
+
+// Muntazamlik xaritasi: oxirgi `weeks` hafta, ustunlar — haftalar, qatorlar — Du..Ya
+export function heatWeeks(state, now = new Date(), weeks = 12) {
+  const start = addDays(weekStart(now), -7 * (weeks - 1));
+  const today = dayKey(now);
+  return Array.from({ length: weeks }, (_, w) => Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(start, w * 7 + i), key = dayKey(d);
+    return { key, n: key > today ? null : dayDone(state, key) };
+  }));
+}
+
+// Kun intensivligi: 0..4
+export function heatLevel(n, goal) {
+  if (!n) return 0;
+  if (goal) return n >= goal * 2 ? 4 : n >= goal ? 3 : n >= goal / 2 ? 2 : 1;
+  return n >= 10 ? 4 : n >= 5 ? 3 : n >= 2 ? 2 : 1;
+}
 
 export function achievements(state, now = new Date()) {
   const total = totalDone(state);
