@@ -224,11 +224,10 @@ export function heatWeeks(state, now = new Date(), weeks = 12) {
   }));
 }
 
-// Kun intensivligi: 0..4
-export function heatLevel(n, goal) {
+// Kun intensivligi: 0 — yo'q, 1 — 1–5 ta, 2 — 6–10 ta, 3 — 11 va undan ko'p
+export function heatLevel(n) {
   if (!n) return 0;
-  if (goal) return n >= goal * 2 ? 4 : n >= goal ? 3 : n >= goal / 2 ? 2 : 1;
-  return n >= 10 ? 4 : n >= 5 ? 3 : n >= 2 ? 2 : 1;
+  return n >= 11 ? 3 : n >= 6 ? 2 : 1;
 }
 
 export function achievements(state, now = new Date()) {

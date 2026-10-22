@@ -37,7 +37,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '22';
+export const APP_VERSION = '23';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -110,22 +110,23 @@ function toast(msg, ms = 4500) {
 
 /* ---------------- Mavzu (yorug' / qorong'i) ---------------- */
 const THEME_KEY = 'namoz-theme';
-const getTheme = () => { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch { return 'auto'; } };
+const getTheme = () => { try { return localStorage.getItem(THEME_KEY) || 'emerald'; } catch { return 'emerald'; } };
 const darkMQ = matchMedia('(prefers-color-scheme: dark)');
 // [kalit, belgi, nomi, [asosiy rang, fon]]
 const THEMES = [
-  ['auto', '📱', 'Avto', null],
-  ['light', '🌿', 'Zumrad', ['#0E8A63', '#F4F2EA']],
-  ['dark', '🌙', 'Yarim tun', ['#2BB583', '#08130F']],
-  ['sand', '🪔', 'Iliq qum', ['#A0612B', '#F3EBDD']],
-  ['kaaba', '🕋', 'Ka’ba', ['#D4AF37', '#0B0B0C']],
-  ['ramadan', '✨', 'Ramazon', ['#B88CFF', '#120E24']],
+  ['auto', '📱', 'Avto'],
+  ['emerald', '🌿', 'Zumrad'],
+  ['dark', '🌙', 'Yarim tun'],
+  ['sand', '🪔', 'Iliq qum'],
+  ['kaaba', '🕋', 'Ka’ba'],
+  ['ramadan', '✨', 'Ramazon'],
+  ['light', '☁️', 'Minimal'],
 ];
-const DARK_THEMES = ['dark', 'kaaba', 'ramadan'];
+const DARK_THEMES = ['emerald', 'dark', 'kaaba', 'ramadan'];
 const resolvedTheme = () => {
   const t = getTheme();
-  if (t === 'auto') return darkMQ.matches ? 'dark' : 'light';
-  return THEMES.some((x) => x[0] === t) ? t : 'light';
+  if (t === 'auto') return darkMQ.matches ? 'emerald' : 'light';
+  return THEMES.some((x) => x[0] === t) ? t : 'emerald';
 };
 const isDark = () => DARK_THEMES.includes(resolvedTheme());
 
@@ -248,15 +249,16 @@ async function autoLocate() {
 
 /* ---------------- Ekranlar va pastki menyu ---------------- */
 const TABS = [
-  ['home', 'Asosiy', '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
-  ['qazo', 'Qazo', '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>'],
+  ['home', 'Bosh sahifa', '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>'],
   ['stats', 'Statistika', '<path d="M4 20V11M10 20V5M16 20v-6M2 20h20"/>'],
   ['calendar', 'Kalendar', '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'],
-  ['learn', 'Qo‘llanma', '<path d="M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5c-3-.5-6 0-8 1.5z"/><path d="M12 6v14.5"/>'],
-  ['settings', 'Sozlama', '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>'],
+  ['qibla', 'Qibla', '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/>'],
+  ['menu', 'Menyu', '<path d="M4 6h16M4 12h16M4 18h16"/>'],
 ];
+const TAB_OF = { qazo: 'home', journey: 'home', quote: 'home', focus: 'home', achievements: 'stats', history: 'calendar',
+  learn: 'menu', settings: 'menu', support: 'menu', themes: 'menu' };
 function tabbarHtml() {
-  const active = screen === 'support' ? 'settings' : screen === 'quote' || screen === 'qibla' ? 'home' : screen;
+  const active = TAB_OF[screen] || screen;
   return `<nav class="tabbar" aria-label="Asosiy menyu"><div class="in">${TABS.map(([id, label, svg]) => `
     <button class="tab ${active === id ? 'on' : ''}" data-tab="${id}" aria-label="${label}" ${active === id ? 'aria-current="page"' : ''}>
       <span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${svg}</svg></span>${label}
@@ -267,6 +269,7 @@ function go(to) {
   if (screen === 'home' && to !== 'home') stopHomeCompass();
   if (screen === 'focus' && to !== 'focus') { try { wakeLock?.release(); } catch {} wakeLock = null; }
   if (screen === 'settings' && to !== 'settings') applyOfficial(state.settings);
+  if (to !== 'history') histEdit = false;
   screen = to; form = null; render();
 }
 
@@ -285,6 +288,11 @@ function render() {
   else if (screen === 'learn') renderLearn();
   else if (screen === 'quote') renderQuote();
   else if (screen === 'qibla') renderQibla();
+  else if (screen === 'journey') renderJourney();
+  else if (screen === 'history') renderHistory();
+  else if (screen === 'achievements') renderAchievements();
+  else if (screen === 'menu') renderMenu();
+  else if (screen === 'themes') renderThemes();
   else if (screen === 'focus') { renderFocus(); $app.classList.add('no-tabs', 'focus-mode'); }
   else { renderHome(); $app.classList.add('has-hero'); }
   if (changed) $app.classList.add('fade');
@@ -418,6 +426,53 @@ function untilText(ms) {
 }
 
 /* ---------------- Bosh sahifa ---------------- */
+// Masjid siluetlari (minoralar va gumbazlar) — jonli osmon ostida
+function skylineSvg() {
+  const dome = (cx, base, w, h) => `M${cx - w / 2} ${base} C${cx - w / 2} ${base - h * 0.75} ${cx - w * 0.18} ${base - h * 0.9} ${cx} ${base - h}`
+    + ` C${cx + w * 0.18} ${base - h * 0.9} ${cx + w / 2} ${base - h * 0.75} ${cx + w / 2} ${base}Z`
+    + `M${cx - 0.8} ${base - h} v-${h * 0.22} h1.6 v${h * 0.22}Z`;
+  const minaret = (x, h, w = 7) => `M${x} 110 V${110 - h} h${w} V110Z M${x - 1.5} ${110 - h * 0.72} h${w + 3} v3 h-${w + 3}Z`
+    + ` M${x - 1} ${110 - h} L${x + w / 2} ${110 - h - w * 2.2} L${x + w + 1} ${110 - h}Z`;
+  const far = [dome(48, 96, 40, 26), 'M28 96h40v14H28Z', minaret(82, 62, 6), dome(118, 100, 26, 16), 'M105 100h26v10h-26Z',
+    dome(318, 98, 44, 28), 'M296 98h44v12h-44Z', minaret(286, 66, 6), minaret(352, 54, 6), dome(378, 100, 30, 18), 'M363 100h30v10h-30Z',
+    'M0 104 h400 v6 H0Z'].join('');
+  const near = [dome(200, 80, 74, 48), 'M156 80h88v30h-88Z', dome(161, 90, 30, 20), dome(239, 90, 30, 20), 'M144 90h112v20H144Z',
+    minaret(126, 84), minaret(267, 84), 'M92 98h48v12H92Z', dome(116, 98, 24, 14), 'M262 98h48v12h-48Z', dome(286, 98, 24, 14), 'M0 106h400v4H0Z'].join('');
+  return `<svg class="skyline" viewBox="0 0 400 110" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <path class="sk-far" d="${far}"/><path class="sk-near" d="${near}"/></svg>`;
+}
+
+// Kompas (bosh sahifa va Qibla bo'limi uchun bitta chizma)
+function compassSvg(id, q, head) {
+  const ticks = Array.from({ length: 72 }, (_, i) => {
+    const a = i * 5, long = a % 30 === 0;
+    return `<line x1="120" y1="${long ? 19 : 22}" x2="120" y2="29" class="c-tick${long ? ' l' : ''}" transform="rotate(${a} 120 120)"/>`;
+  }).join('');
+  const letters = [['N', 0], ['E', 90], ['S', 180], ['W', 270]].map(([t, a]) =>
+    `<text x="120" y="48" text-anchor="middle" class="c-let${t === 'N' ? ' n' : ''}" transform="rotate(${a} 120 120)">${t}</text>`).join('');
+  return `<svg class="compass" viewBox="0 0 240 240" aria-hidden="true">
+    <circle cx="120" cy="120" r="117" class="c-outer"/>
+    <g id="${id}" class="c-dial" style="transform:rotate(${head == null ? 0 : -head}deg)">
+      <circle cx="120" cy="120" r="106" class="c-face"/>
+      ${ticks}${letters}
+      <g transform="rotate(${q} 120 120)">
+        <path d="M120 36 L129 84 L120 79 L111 84Z" class="c-needle"/>
+        <path d="M120 204 L126 158 L120 162 L114 158Z" class="c-tail"/>
+      </g>
+    </g>
+    <circle cx="120" cy="120" r="33" class="c-hub"/>
+    <g class="c-kaaba">
+      <path d="M103 107 L110 100 H143 L136 107Z" fill="#2a2a2a"/>
+      <path d="M136 107 L143 100 V129 L136 137Z" fill="#141414"/>
+      <rect x="103" y="107" width="33" height="30" fill="#0b0b0b"/>
+      <rect x="103" y="113" width="33" height="4" fill="#D9B25A"/>
+      <path d="M136 113 L143 106 V110 L136 117Z" fill="#a8853a"/>
+      <rect x="123" y="124" width="7" height="13" fill="#C9A24A"/>
+    </g>
+    <path d="M120 3 l7 11 h-14z" class="c-phone"/>
+  </svg>`;
+}
+
 function renderHome() {
   const s = state.settings;
   const now = new Date();
@@ -428,7 +483,7 @@ function renderHome() {
   const nx = nextPrayer(now, s);
   const live = PRAYERS.slice(0, 5).find((p) => now >= windows[p].start && now < windows[p].end);
   const sm = summary(state, now);
-  const st = streak(state, now);
+  const j = journey(state);
   const hour = now.getHours();
   const greet = hour < 11 ? 'Xayrli tong' : hour < 17 ? 'Assalomu alaykum' : 'Xayrli kech';
   skyNow = skyPhase(now, times);
@@ -436,7 +491,8 @@ function renderHome() {
   const lat = Number(s.lat), lng = Number(s.lng);
   const q = qiblaBearing(lat, lng);
   const dec = magDeclination(lat, lng);
-  const j = journey(state);
+  const km = Math.round(distanceToKaaba(lat, lng));
+  const aligned = hcHead != null && Math.abs(angDiff(q, hcHead)) <= 5;
 
   const prayers = activePrayers(s).map((p) => {
     const w = windows[p];
@@ -461,26 +517,67 @@ function renderHome() {
       </div>`;
   }).join('');
 
+  // "Bugungi namoz": hozirgi (vaqti kirgan) yoki keyingi namoz
+  const cur = live || nx?.p;
+  const curDay = live ? day : nx ? currentPrayerDay(nx.at, s) : day;
+  const cw = cur ? dayWindows(curDay, s).windows[cur] : null;
+  const curMark = live ? state.log[key]?.[live] : null;
+  const curBtn = !cur ? '' : live
+    ? (curMark === 'prayed' ? '<span class="tn-st ok">✓ O‘qildi</span>'
+      : curMark === 'excused' ? '<span class="tn-st">Uzrli</span>'
+        : `<button class="tn-btn" data-pray="${live}">O‘qidim ✓</button>`)
+    : `<span class="tn-st">${untilText(nx.at - now)}<small>qoldi</small></span>`;
+
   $app.innerHTML = `
-    <header class="hero ${sky}" ${sky ? `title="${SKY_NAME[skyNow]}"` : ''}>
+    <header class="hero home-hero ${sky}" ${sky ? `title="${SKY_NAME[skyNow]}"` : ''}>
       ${sky ? '<span class="celest" aria-hidden="true"></span>' : ''}
-      <div class="row">
+      ${skylineSvg()}
+      <div class="hh-top">
         <div class="grow">
-          <div class="sub">${greet}</div>
-          <h1>${esc(s.name) || 'Do‘stim'}</h1>
-          <div class="sub">📍 ${esc(s.city)} · ${fmtDate(day)}</div>
+          <div class="hh-loc">📍 ${esc(s.city)}</div>
+          <div class="hh-date">${fmtDate(day)} · ${greet}${s.name ? `, ${esc(s.name)}` : ''}</div>
         </div>
-        ${homeCompassHtml(q)}
+        <button class="hh-gear" id="toSettings" aria-label="Sozlamalar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+        </button>
       </div>
-      ${nx ? `<div class="next">
-        <div class="grow">
-          <div class="label">${live ? `Hozir: ${NAMES[live]} · keyingisi` : 'Keyingi namoz'}</div>
-          <div class="name">${ICONS[nx.p]} ${NAMES[nx.p]} <span style="font-weight:600;opacity:.85">${hm(nx.at)}</span></div>
-        </div>
-        <div class="count"><b>${untilText(nx.at - now)}</b><span>qoldi</span></div>
-      </div>` : ''}
+      <button class="hh-compass ${aligned ? 'ok' : ''}" id="toQibla" aria-label="Qibla ${Math.round(q)} daraja, Ka’bagacha ${num(km)} km. Qibla bo‘limini ochish">
+        ${compassSvg('hqDial', q, hcHead)}
+      </button>
+      <div class="hh-q"><b>Qibla ${Math.round(q)}°</b><span>${num(km)} km</span></div>
     </header>
-    ${journeyCardHtml(j, sm, st)}
+
+    ${cur ? `<div class="card tn">
+      <div class="tn-l">🕌 ${live ? 'Bugungi namoz' : 'Keyingi namoz'}</div>
+      <div class="row">
+        <div class="tn-ico">${ICONS[cur]}</div>
+        <div class="grow">
+          <div class="tn-name">${NAMES[cur]}</div>
+          <div class="tn-time">${hm(cw.start)}</div><div class="sub">${hm(cw.end)} gacha</div>
+        </div>
+        ${curBtn}
+      </div>
+    </div>` : ''}
+
+    <div class="duo">
+      <button class="card hq-card" id="toJourney" aria-label="Qazo: ${num(j.left)} ta qoldi. Qazo yo‘lini ochish">
+        <div class="grow" style="text-align:left">
+          <div class="tn-l">🕌 Qazo</div>
+          <div class="hq-n">${j.left || !j.start ? an('left', j.left) : '🌙'}</div>
+          <div class="sub">${j.start ? (j.left ? 'qoldi · yo‘lni ko‘rish ›' : 'Alhamdulillah, tugadi') : 'qazo kiritilmagan'}</div>
+        </div>
+        <div class="ring sm">${ringSvg(j.done, j.start, 74, 7, 'j-ring')}<div class="rt"><b class="pct">${j.pct}%</b></div></div>
+      </button>
+    </div>
+
+    <div class="card plan">
+      <button class="plan-main" id="toPlan" aria-label="Bugungi reja: ${sm.today} / ${sm.goal}">
+        <div class="row"><div class="grow tn-l" style="margin:0">📿 Bugungi reja</div><b class="plan-n">${an('today', sm.today)} / ${sm.goal}</b></div>
+        ${bar(sm.today, sm.goal, false, 'today-bar')}
+      </button>
+      ${sm.remaining ? `<button class="btn primary" id="startFocus">▶ Qazoni boshlash</button>` : ''}
+    </div>
+
     ${installHtml(false)}
     ${s.excused ? `<div class="install-card" style="border-color:var(--gold-bright)">
       <div class="ic-title">🌸 Uzrli kunlar rejimi yoqilgan</div>
@@ -493,7 +590,7 @@ function renderHome() {
       <div class="row" style="gap:8px"><button class="btn primary" id="bkNow" style="flex:2">Zaxira olish</button>
         <button class="btn" id="bkLater" style="flex:1">Keyinroq</button></div></div>` : ''}
 
-    <div class="section">Bugungi namozlar</div>
+    <div class="section">Namoz vaqtlari</div>
     ${prayers}
     <p class="hint">${sourceText(times, s)}${edited ? ' · qo‘lda tuzatilgan' : ''}.
       Vaqti tugaguncha “O‘qidim” bosilmasa, namoz avtomatik qazo hisobiga qo‘shiladi.
@@ -503,15 +600,15 @@ function renderHome() {
       <div class="qc-l">${dq.ayah ? '📖 Kun oyati' : '🌿 Kun hadisi'}</div>
       <div class="qc-t">«${esc(dq.text)}»</div>
       <div class="qc-r">${esc(dq.ref)} · <span>to‘liq o‘qish ›</span></div></button>`; })()}
-
     `;
 
   bindInstall();
-
   $app.querySelector('#toQibla').onclick = () => go('qibla');
+  $app.querySelector('#toSettings').onclick = () => go('settings');
   $app.querySelector('#toQuote').onclick = () => openQuote(todayQuote().id);
+  $app.querySelector('#toJourney').onclick = () => go('journey');
+  $app.querySelector('#toPlan').onclick = () => go('qazo');
   $app.querySelector('#startFocus')?.addEventListener('click', openFocus);
-  $app.querySelector('#toMap')?.addEventListener('click', () => go('qazo'));
   startHomeCompass(q, dec);
   $app.querySelectorAll('[data-pray]').forEach((b) => {
     b.onclick = () => save(togglePrayed(state, day, b.dataset.pray, new Date()));
@@ -526,50 +623,14 @@ function renderHome() {
   if (ex) ex.onclick = () => setExcused(false);
 }
 
-// Bosh sahifadagi asosiy markaz: "Qazo safaringiz" halqasi
-function journeyCardHtml(j, sm, st) {
-  if (!j.start) {
-    return `<div class="jcard">
-      <div class="jc-l">🕌 Qazo safaringiz</div>
-      <p class="jc-empty">Qazo hisobingiz bo‘sh. Vaqtida o‘qilmagan namozlar shu yerda paydo bo‘ladi.<br>
-        Eski qazolaringiz bo‘lsa — Qazo bo‘limida <b>⋯ → ＋</b> orqali kiriting.</p>
-      <button class="btn" id="toMap">Qazo bo‘limi →</button></div>`;
-  }
-  const doneAll = j.left === 0;
-  return `<div class="jcard">
-    <div class="jc-l">🕌 Qazo safaringiz</div>
-    <div class="ring jc-ring">${ringSvg(j.done, j.start, 176, 13, 'j-ring')}
-      <div class="rt"><div>${doneAll ? '<b>🌙</b><span>Alhamdulillah!</span>' : `<b>${an('left', j.left)}</b><span>QAZO QOLDI</span>`}</div></div></div>
-    <div class="jc-track"><span>${j.pct}%</span>${bar(j.done, j.start, true, 'j-bar')}<span>100%</span></div>
-    <div class="jc-meta">
-      <div><span>🔥</span><b>${st.current}</b> kunlik streak</div>
-      <div><span>🎯</span>Bugungi reja <b>${an('today', sm.today)} / ${sm.goal}</b></div>
-    </div>
-    ${bar(sm.today, sm.goal, true, 'today-bar')}
-    ${doneAll ? '' : `<button class="btn primary jc-go" id="startFocus">▶ Qazoni boshlash</button>`}
-    <button class="jc-link" id="toMap">🗺 Yo‘l xaritasi · ${num(j.done)} / ${num(j.start)} ›</button>
-  </div>`;
-}
+// Sahifa sarlavhasi (orqaga tugmasi bilan)
+const topbar = (title, sub, back) => `<div class="topbar">
+  ${back ? `<button class="icon back" id="tbBack" aria-label="Orqaga">‹</button>` : ''}
+  <div class="grow"><div class="page-title">${title}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div></div>`;
+const bindBack = (to) => { const b = $app.querySelector('#tbBack'); if (b) b.onclick = () => go(to); };
 
 // Bosh sahifadagi jonli Qibla kompasi
 let hcStop = null, hcHead = null, hcState = 'wait';
-function homeCompassHtml(q) {
-  const ok = hcHead != null && Math.abs(angDiff(q, hcHead)) <= 5;
-  return `<button class="hq ${ok ? 'ok' : ''}" id="toQibla" aria-label="Qibla ${Math.round(q)} daraja — Qibla sahifasini ochish">
-    <svg id="hqDial" viewBox="0 0 64 64" style="transform:rotate(${hcHead == null ? 0 : -hcHead}deg)" aria-hidden="true">
-      <circle cx="32" cy="32" r="29" class="hq-ring"/>
-      ${[0, 90, 180, 270].map((a) => `<line x1="32" y1="4" x2="32" y2="9" class="hq-tick" transform="rotate(${a} 32 32)"/>`).join('')}
-      <path d="M32 2.5 l3.5 6 h-7z" fill="#FF6B6B"/>
-      <g transform="rotate(${q} 32 32)">
-        <line x1="32" y1="32" x2="32" y2="20" stroke="var(--gold-bright)" stroke-width="2.5" stroke-linecap="round"/>
-        <rect x="26" y="9" width="12" height="12" rx="2" fill="#111" stroke="var(--gold-bright)" stroke-width="1.5"/>
-        <line x1="26" y1="12.5" x2="38" y2="12.5" stroke="var(--gold-bright)" stroke-width="1.6"/>
-      </g>
-      <circle cx="32" cy="32" r="2.6" fill="#fff"/>
-    </svg>
-    <span class="hq-d">${Math.round(q)}°</span><span class="hq-l">QIBLA</span>
-  </button>`;
-}
 function stopHomeCompass() { hcStop?.(); hcStop = null; }
 function startHomeCompass(q, dec) {
   if (hcStop || hcState === 'none') return;
@@ -610,22 +671,25 @@ function renderFocus() {
   if (!focusP || !((state.qazo[focusP] || 0) > 0)) focusP = pickFocus(focusP);
   const list = activePrayers(state.settings).filter((p) => (state.qazo[p] || 0) > 0 || td[p]);
   const met = sm.goal && sm.today >= sm.goal;
+  const pct = sm.goal ? Math.min(100, Math.round((sm.today / sm.goal) * 100)) : 0;
   $app.innerHTML = `<div class="focus">
     <button class="fx" id="fxExit" aria-label="Focus rejimidan chiqish">✕</button>
-    <div class="f-ico">🕌</div>
-    <div class="f-l">Bugungi qazo</div>
-    <div class="f-big">${an('today', sm.today)}<span> / ${sm.goal}</span></div>
-    ${bar(sm.today, sm.goal, false, 'today-bar')}
+    <div class="f-ico">🌿</div>
+    <div class="f-title">Focus rejimi</div>
+    <div class="sub">Endi faqat maqsadingiz muhim</div>
+    <div class="ring big f-ring">${ringSvg(sm.today, sm.goal, 184, 12, 'today-ring')}
+      <div class="rt"><div><b>${an('today', sm.today)} / ${sm.goal}</b><span>bajarildi · ${pct}%</span></div></div></div>
     ${met ? '<div class="finish">🎉 Bugungi reja bajarildi. Alloh qabul qilsin! Xohlasangiz davom eting.</div>' : ''}
+    <div class="f-l">Bugungi qazo</div>
     <div class="f-list">${list.map((p) => `<div class="f-row ${p === focusP ? 'cur' : ''}">
-      <span>${ICONS[p]} ${NAMES[p]}</span><b>${td[p] ? `✓${td[p] > 1 ? ` ${td[p]}` : ''}` : '○'}</b></div>`).join('')}</div>
+      <span>${ICONS[p]} ${NAMES[p]}</span><b class="${td[p] ? 'on' : ''}">${td[p] ? `✓${td[p] > 1 ? ` ${td[p]}` : ''}` : '○'}</b></div>`).join('')}</div>
     ${focusP ? `<div class="f-cur"><div class="f-n">Navbatdagi</div>
         <div class="f-cn">${ICONS[focusP]} ${NAMES[focusP]} qazosi</div>
         <div class="sub">qoldi: ${an(`q-${focusP}`, state.qazo[focusP])}</div></div>
       <button class="btn primary f-do" id="fxDone">✓ Ado qildim</button>
-      <button class="btn" id="fxNext">Keyingisi →</button>`
+      <button class="btn f-next" id="fxNext">Keyingisi →</button>`
       : '<div class="finish">Qazo qolmagan — Alhamdulillah 🌙</div>'}
-    <p class="hint" style="text-align:center;margin-top:16px">Chalg‘itmaslik uchun boshqa tugmalar yashirildi, ekran o‘chmaydi.<br>Namozni o‘qib bo‘lgach “Ado qildim”ni bosing.</p>
+    <p class="hint" style="text-align:center;margin-top:16px">Boshqa tugmalar yashirildi, ekran o‘chmaydi.<br>Namozni o‘qib bo‘lgach “Ado qildim”ni bosing.</p>
   </div>`;
   $app.querySelector('#fxExit').onclick = () => go('home');
   const d = $app.querySelector('#fxDone');
@@ -770,46 +834,35 @@ function renderQazo() {
   const s = state.settings;
   const now = new Date();
   const sm = summary(state, now);
-  const todayDone = state.done?.[dayKey(now)] || {};
-  const finish = estimatedFinish(state, now);
+  const td = state.done?.[dayKey(now)] || {};
+  const pct = sm.goal ? Math.min(100, Math.round((sm.today / sm.goal) * 100)) : 0;
 
   const rows = activePrayers(s).map((p) => `
-    <div class="qrow">
+    <div class="prow">
       <div class="p-ico">${ICONS[p]}</div>
       <div class="grow">
         <div class="pname">${NAMES[p]}</div>
-        <div class="row" style="gap:8px"><span class="qn">${an(`q-${p}`, state.qazo[p])}</span><span class="sub">qoldi</span>
-          ${todayDone[p] ? `<span class="today">· bugun ${todayDone[p]} ✓</span>` : ''}</div>
+        <div class="sub"><span class="qn-s">${an(`q-${p}`, state.qazo[p])}</span> qoldi${td[p] ? ` · <span class="today">bugun ${td[p]} ✓</span>` : ''}</div>
       </div>
-      <button class="ado" data-ado="${p}" ${(state.qazo[p] || 0) <= 0 ? 'disabled' : ''}>✓ Ado qildim</button>
+      <button class="chk ${td[p] ? 'on' : ''}" data-ado="${p}" ${(state.qazo[p] || 0) <= 0 ? 'disabled' : ''}
+        aria-label="${NAMES[p]}: 1 ta qazo ado qildim">✓</button>
       <button class="plus" data-more="${p}" aria-label="${NAMES[p]}: bir nechta, bekor qilish, tuzatish">⋯</button>
     </div>`).join('');
 
   $app.innerHTML = `
-    <div class="page-title">Qazo namozlar</div>
-
-    <div class="card" style="margin-top:0">
-      <div class="row" style="gap:16px">
-        <div class="ring">${ringSvg(sm.today, sm.goal, 108, 10, 'today-ring')}<div class="rt"><div><b>${an('today', sm.today)}</b><span>/ ${sm.goal}</span></div></div></div>
-        <div class="grow">
-          <h2 style="margin:0">Bugungi reja</h2>
-          <div class="sub" style="margin:4px 0 10px">Bugun nechta qazo ado qilasiz?</div>
-          <div class="stepper"><button id="gMinus" aria-label="Kamaytirish">−</button><b>${sm.goal}</b><button id="gPlus" aria-label="Ko‘paytirish">＋</button></div>
-        </div>
-      </div>
-      ${sm.goal && sm.today >= sm.goal ? '<div class="finish">🎉 Bugungi maqsad bajarildi</div>' : ''}
+    ${topbar('Bugungi reja', fmtDate(now), true)}
+    <div class="card plan-card">
+      <div class="ring big">${ringSvg(sm.today, sm.goal, 196, 13, 'today-ring')}
+        <div class="rt"><div><b>${an('today', sm.today)} / ${sm.goal}</b><span>bajarildi</span><em>${pct}%</em></div></div></div>
+      <div class="goal-step"><span class="sub">Kunlik reja</span>
+        <div class="stepper"><button id="gMinus" aria-label="Kamaytirish">−</button><b>${sm.goal}</b><button id="gPlus" aria-label="Ko‘paytirish">＋</button></div></div>
+      ${sm.goal && sm.today >= sm.goal ? '<div class="finish">🎉 Bugungi reja bajarildi. Alloh qabul qilsin!</div>' : ''}
     </div>
 
-    ${(() => { const j = journey(state); return `<div class="card" id="mapCard">
-      <div class="card-head"><h2>🗺 Qazo yo‘li</h2><span class="pill green">${j.pct}%</span></div>
-      <div class="q-nums" style="margin-top:0">
-        <div><b>${num(j.start)}</b><span>boshlanishda</span></div>
-        <div><b style="color:var(--accent)">${an('done', j.done)}</b><span>ado qilindi</span></div>
-        <div><b>${an('left', j.left)}</b><span>qoldi</span></div></div>
-      ${j.start ? `<div class="jmap-wrap">${journeySvg(j.start, j.done, num)}</div>` : ''}`; })()}
-      ${finish ? `<div class="finish">Kuniga ${sm.goal} tadan — taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
-      <p class="hint">“Boshlanishda” — ilovaga kiritilgan va keyin qo‘shilgan barcha qazolar.</p>
-    </div>
+    ${rows}
+    <button class="btn primary big" id="addQazo">＋ Qazo qo‘shish</button>
+    ${sm.remaining ? '<button class="btn" id="toFocus">🌿 Focus rejimida o‘qish</button>' : ''}
+
     ${sm.remaining === 0 && sm.total > 0 ? `<div class="card" style="text-align:center"><div style="font-size:40px">🌙</div>
       <h2 style="margin:6px 0">Alhamdulillah! Qazolar tugadi</h2><p class="sub">Endi namozlarni o‘z vaqtida o‘qishda davom eting.</p></div>` : ''}
     ${sm.remaining > 0 ? calcHtml(sm) : ''}
@@ -818,26 +871,91 @@ function renderQazo() {
       <div class="switch" style="margin-top:0"><span><b>🌸 Uzrli kunlar (hayz/nifos)</b><br>
         <span class="sub">Yoqilganda vaqti o‘tgan namozlar qazoga qo‘shilmaydi</span></span>
         <input type="checkbox" id="exToggle" ${s.excused ? 'checked' : ''} /></div></div>` : ''}
-
-    <div class="section">Namozlar bo‘yicha</div>
-    ${rows}
     ${progressHtml()}
     <button class="learn-card" id="toLearnQ" style="margin-top:16px">
       <span class="lc-i">💭</span>
       <span class="grow"><b>Qazo qanday o‘qiladi va niyat qilinadi?</b><br><span class="sub">Qo‘llanmani ochish</span></span>
       <span class="lc-a">›</span>
     </button>
-    <p class="hint"><b>✓ Ado qildim</b> — bitta qazo o‘qildi, hisobdan ayriladi va bugungi natijangizga yoziladi.<br>
-      <b>⋯</b> — bir nechtasini birdan kiritish (2, 5, 10…), bugungi xatoni bekor qilish yoki qazo hisobini tuzatish.</p>`;
+    <p class="hint"><b>✓</b> — bitta qazo o‘qildi: hisobdan ayriladi va bugungi natijangizga yoziladi.<br>
+      <b>⋯</b> — bir nechtasini birdan kiritish (2, 5, 10…), bugungi xatoni bekor qilish yoki qazo hisobini tuzatish.<br>
+      <b>＋ Qazo qo‘shish</b> — eski qazolaringizni hisobga kiritish.</p>`;
 
+  bindBack('home');
   const setGoal = (v) => save({ ...state, settings: { ...s, dailyGoal: Math.max(0, Math.min(100, v)) } });
   $app.querySelector('#gMinus').onclick = () => setGoal((Number(s.dailyGoal) || 0) - 1);
   $app.querySelector('#gPlus').onclick = () => setGoal((Number(s.dailyGoal) || 0) + 1);
   $app.querySelectorAll('[data-ado]').forEach((b) => { b.onclick = () => doneAction(b.dataset.ado, 1); });
   $app.querySelector('#toLearnQ').onclick = () => { learnOpen = 'qazo'; go('learn'); };
+  $app.querySelector('#addQazo').onclick = openAddSheet;
+  $app.querySelector('#toFocus')?.addEventListener('click', openFocus);
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
   $app.querySelectorAll('[data-more]').forEach((b) => { b.onclick = () => openQazoSheet(b.dataset.more); });
+}
+
+// "＋ Qazo qo'shish": qaysi namoz va nechta
+function openAddSheet() {
+  document.querySelector('.sheet-bg')?.remove();
+  let p = activePrayers(state.settings)[0];
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="sheet-bg"><div class="sheet">
+      <div class="ic-title">＋ Qazo qo‘shish</div>
+      <p class="sub" style="margin:6px 0 0">Eski (o‘qilmagan) namozlaringizni hisobga kiriting.</p>
+      <div class="sheet-l">Qaysi namoz?</div>
+      <div class="chips">${activePrayers(state.settings).map((x) => `<button class="chip ${x === p ? 'on' : ''}" data-ap="${x}">${ICONS[x]} ${NAMES[x]}</button>`).join('')}</div>
+      <div class="sheet-l">Nechta?</div>
+      <div class="chips">${[1, 5, 10, 30, 100].map((n) => `<button class="chipbtn" data-an="${n}">+${n}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px"><input type="number" id="anN" min="1" placeholder="Boshqa son" style="flex:1" />
+        <button class="primary" id="anDo" style="padding:12px 16px">Qo‘shish</button></div>
+      <button class="btn" id="anClose" style="margin-top:16px">Yopish</button>
+    </div></div>`);
+  const bg = document.querySelector('.sheet-bg');
+  const close = () => bg.remove();
+  bg.onclick = (e) => { if (e.target === bg) close(); };
+  bg.querySelector('#anClose').onclick = close;
+  bg.querySelectorAll('[data-ap]').forEach((b) => { b.onclick = () => {
+    p = b.dataset.ap; bg.querySelectorAll('[data-ap]').forEach((o) => o.classList.toggle('on', o === b)); }; });
+  const add = (n) => { if (!(n > 0)) return toast('Sonni kiriting'); close(); doneAction(p, n, 'add'); };
+  bg.querySelectorAll('[data-an]').forEach((b) => { b.onclick = () => add(Number(b.dataset.an)); });
+  bg.querySelector('#anDo').onclick = () => add(Math.floor(Number(bg.querySelector('#anN').value)));
+}
+
+/* ---------------- Qazo yo'li ---------------- */
+function renderJourney() {
+  const now = new Date();
+  const j = journey(state);
+  const sm = summary(state, now);
+  const finish = estimatedFinish(state, now);
+  const pace = recentPace(state, now, 14);
+  $app.innerHTML = `
+    ${topbar('Qazo yo‘li', 'Har bir qazo — Allohga yaqinlashish uchun yana bir imkon', true)}
+    <div class="jr">
+      <div class="jr-sky" aria-hidden="true">
+        <svg viewBox="0 0 400 300" preserveAspectRatio="none">
+          <path d="M0 210 L60 150 L110 190 L170 120 L230 185 L290 135 L350 175 L400 140 V300 H0Z" class="mt1"/>
+          <path d="M0 250 L70 205 L130 240 L200 195 L270 245 L330 210 L400 235 V300 H0Z" class="mt2"/>
+        </svg>
+      </div>
+      <div class="jr-top">
+        <div class="ring big">${ringSvg(j.done, j.start, 164, 10, 'j-ring')}
+          <div class="rt"><div><span class="jr-ic">🕌</span><b>${an('left', j.left)}</b><span>qoldi</span></div></div></div>
+      </div>
+      ${j.start ? `<div class="jmap-wrap">${journeySvg(j.start, j.done, num)}</div>`
+        : '<p class="sub" style="text-align:center;position:relative">Qazo hisobingiz bo‘sh — “Bugungi reja” bo‘limida “＋ Qazo qo‘shish” orqali kiriting.</p>'}
+    </div>
+    <div class="q-nums">
+      <div><b>${num(j.start)}</b><span>boshlanishda</span></div>
+      <div><b style="color:var(--accent)">${an('done', j.done)}</b><span>ado qilindi</span></div>
+      <div><b>${j.pct}%</b><span>yo‘l bosildi</span></div>
+    </div>
+    ${finish && j.left ? `<div class="finish">Kuniga ${sm.goal} tadan — taxminiy yakun: ${fmtDate(finish)}</div>` : ''}
+    ${pace >= 0.5 && j.left ? `<p class="hint">📈 Oxirgi 14 kundagi sur’atingiz: kuniga ${pace.toFixed(1)} ta.</p>` : ''}
+    <p class="hint">Yo‘ldagi bosqichlar: 100 → 500 → 1 000 → 2 500 → 5 000… Har biriga yetganda oltin belgi yonadi.
+      “Boshlanish” — ilovaga kiritilgan va keyin qo‘shilgan barcha qazolar.</p>
+    ${j.left ? '<button class="btn primary big" id="jrGo">▶ Qazoni boshlash</button>' : ''}`;
+  bindBack('home');
+  $app.querySelector('#jrGo')?.addEventListener('click', openFocus);
 }
 
 /* ---------------- Qibla ---------------- */
@@ -852,46 +970,30 @@ function renderQibla() {
   const now = new Date();
   const sun = sunPosition(now, lat, lng);
   const times = qiblaSunTimes(lat, lng, now);
-  const sunRel = angDiff(q, sun.azimuth); // qibla quyoshdan qancha o'ngda
+  const sunRel = angDiff(q, sun.azimuth);
   const dir = (d) => (d > 0 ? `${Math.abs(d).toFixed(0)}° o‘ngda` : `${Math.abs(d).toFixed(0)}° chapda`);
 
   $app.innerHTML = `
-    <div class="row" style="margin:6px 0 4px"><button class="icon" id="qbBack" aria-label="Orqaga">←</button>
-      <div class="page-title" style="margin:0">Qibla</div></div>
-    <div class="sub">📍 ${esc(s.city)} · Ka’bagacha ${num(km)} km</div>
-
-    <div class="card compass-card">
-      <div class="compass-wrap">
-        <div class="phone-mark">▲</div>
-        <svg id="dial" class="dial" viewBox="0 0 240 240" style="transform:rotate(${heading == null ? 0 : -(heading + dec)}deg)">
-          <circle cx="120" cy="120" r="112" fill="var(--card2)" stroke="var(--line)" stroke-width="2"/>
-          ${Array.from({ length: 72 }, (_, i) => { const a = i * 5, long = a % 30 === 0;
-            return `<line x1="120" y1="${long ? 14 : 18}" x2="120" y2="26" stroke="var(--sub)" stroke-width="${long ? 2 : 1}" transform="rotate(${a} 120 120)"/>`; }).join('')}
-          ${[['N', 0, 'var(--red)'], ['E', 90, 'var(--sub)'], ['S', 180, 'var(--sub)'], ['W', 270, 'var(--sub)']].map(([t, a, c]) =>
-            `<text x="120" y="44" text-anchor="middle" font-size="15" font-weight="800" fill="${c}" transform="rotate(${a} 120 120)">${t}</text>`).join('')}
-          <g transform="rotate(${q} 120 120)">
-            <line x1="120" y1="120" x2="120" y2="52" stroke="var(--gold-bright)" stroke-width="4" stroke-linecap="round"/>
-            <rect x="106" y="30" width="28" height="28" rx="4" fill="#111" stroke="var(--gold-bright)" stroke-width="2"/>
-            <line x1="106" y1="38" x2="134" y2="38" stroke="var(--gold-bright)" stroke-width="3"/>
-          </g>
-          <circle cx="120" cy="120" r="6" fill="var(--accent)"/>
-        </svg>
-      </div>
-      <div id="qAcc" class="q-acc"></div>
+    ${topbar('Qibla', `📍 ${esc(s.city)}`, false)}
+    <div class="qb-stage">
+      <div class="qb-glow" aria-hidden="true"></div>
+      <div class="qb-compass">${compassSvg('dial', q, heading == null ? null : angNorm(heading + dec))}</div>
+      <div class="qb-deg">${q.toFixed(0)}°</div>
+      <div class="sub" style="text-align:center">Ka’baga yo‘nalish (shimoldan)</div>
       <div id="qStatus" class="q-status">${compassState === 'nosensor' ? 'Bu qurilmada kompas topilmadi' : compassState === 'denied' ? 'Kompasga ruxsat berilmadi' : 'Kompas ishga tushmoqda…'}</div>
-      <div class="q-nums">
-        <div><b>${q.toFixed(1)}°</b><span>qibla (shimoldan)</span></div>
-        <div><b id="qHead">—</b><span>telefon yo‘nalishi</span></div>
-        <div><b>${dec >= 0 ? '+' : ''}${dec.toFixed(1)}°</b><span>magnit og‘ish</span></div>
-      </div>
-      <p class="hint" style="text-align:left">Telefonni <b>tekis, gorizontal</b> ushlang. Raqamlar sakrasa yoki noto‘g‘ri ko‘rinsa — telefonni havoda
-        <b>“8” shaklida</b> bir necha marta aylantiring va temir, magnit, kompyuter, mashina kabi narsalardan uzoqlashing.
-        Magnit og‘ish (haqiqiy va magnit shimol farqi) avtomatik hisobga olinadi.</p>
+      <div id="qAcc" class="q-acc"></div>
     </div>
+    <div class="duo2">
+      <div class="card mini-card"><span class="sub">Masofa</span><b>${num(km)} km</b></div>
+      <div class="card mini-card"><span class="sub">Magnit og‘ishi</span><b>${dec >= 0 ? '+' : ''}${dec.toFixed(1)}°</b></div>
+      <div class="card mini-card"><span class="sub">Telefon</span><b id="qHead">—</b></div>
+    </div>
+    <p class="hint">Telefonni <b>tekis, gorizontal</b> ushlang. Raqamlar sakrasa — telefonni havoda <b>“8” shaklida</b> bir necha marta aylantiring
+      va temir, magnit, kompyuter, mashinadan uzoqlashing. Magnit og‘ish avtomatik hisobga olinadi.</p>
 
-    <div class="card">
-      <h2>☀️ Quyosh bo‘yicha tekshirish</h2>
-      <p class="sub" style="margin-top:-6px">Kompasga bog‘liq emas — eng ishonchli usul.</p>
+    <details class="card sun-card" open>
+      <summary><span class="sun-i">☀️</span><span class="grow"><b>Quyosh orqali tekshirish</b><br>
+        <span class="sub">Kompasga bog‘liq emas — eng ishonchli usul</span></span><span class="ls-a">⌄</span></summary>
       ${times.length ? times.map((t) => `<div class="sun-row">
         <b>${hm(t.at)}</b><span>${t.kind === 'face' ? 'quyosh aynan qibla tomonda bo‘ladi — <b>quyoshga yuzlansangiz, qiblaga qaragan bo‘lasiz</b>'
           : 'quyosh qiblaning teskarisida bo‘ladi — <b>soyangiz qiblani ko‘rsatadi</b>'}</span></div>`).join('')
@@ -899,11 +1001,10 @@ function renderQibla() {
       ${sun.altitude > 3 ? `<div class="finish" style="text-align:left">Hozir: qibla quyoshdan <b>${dir(sunRel)}</b>
         (quyosh ${sun.azimuth.toFixed(0)}° da, balandligi ${sun.altitude.toFixed(0)}°).</div>`
         : '<p class="hint">Hozir quyosh ufqdan past — kunduzi tekshiring.</p>'}
-    </div>
+    </details>
     <p class="hint">Qibla yo‘nalishi Ka’ba koordinatalari (21.4225° N, 39.8262° E) bo‘yicha katta doira formulasi bilan hisoblanadi.
       Magnit og‘ish — Jahon magnit modeli WMM2025 (NOAA), quyosh holati — NOAA astronomik algoritmi.</p>`;
 
-  $app.querySelector('#qbBack').onclick = () => go('home');
   if (!compassStop && compassState === 'wait') {
     compassStop = startCompass((h, acc, flat) => {
       heading = h; compassState = 'ok';
@@ -921,6 +1022,7 @@ function renderQibla() {
       const ok = Math.abs(d) <= 3;
       st.className = `q-status ${ok ? 'ok' : ''}`;
       st.innerHTML = ok ? '✅ Qibla tomonga qaradingiz' : `${d > 0 ? '↻ O‘ngga' : '↺ Chapga'} buriling: <b>${Math.abs(d).toFixed(0)}°</b>`;
+      document.querySelector('.qb-stage')?.classList.toggle('ok', ok);
       if (ok && !aligned) { aligned = true; try { navigator.vibrate?.(60); } catch {} }
       if (Math.abs(d) > 6) aligned = false;
     }, (why) => { compassState = why; if (screen === 'qibla') render(); });
@@ -1008,17 +1110,43 @@ function renderStats() {
   const dayBuckets = statPeriod === '7' || statPeriod === '30';
   const max = Math.max(dayBuckets ? sm.goal : 0, ...bars.map((b) => b.n), 1);
   const ach = achievements(state, now);
-  const unlocked = ach.filter((a) => a.unlocked).length;
+  const unlocked = ach.filter((a) => a.unlocked);
   const finish = estimatedFinish(state, now);
-  const H = '88px'; // grafik ustunining eng katta balandligi
+  const H = '104px';
+  const gs = goalStreak(state, now);
+  const kv = (ic, k, v, cls = '') => `<div class="kv"><span class="kv-i">${ic}</span><span class="grow">${k}</span><b class="${cls}">${v}</b></div>`;
 
   $app.innerHTML = `
-    <div class="page-title">Statistika</div>
-    <div class="tiles">
-      <div class="tile"><div class="v">${an('today', sm.today)}<span class="sub" style="font-size:15px"> / ${sm.goal}</span></div><div class="k">Bugun</div></div>
-      <div class="tile"><div class="v">${an('week', sm.week)}</div><div class="k">Bu hafta</div></div>
-      <div class="tile"><div class="v">${an('month', sm.month)}</div><div class="k">${MONTHS[now.getMonth()]} oyida</div></div>
-      <div class="tile"><div class="v">${an('done', sm.total)}</div><div class="k">Jami ado qilingan</div></div>
+    ${topbar('Statistika', '', false)}
+    <div class="seg seg5">${PERIODS.map(([k, l]) => `<button data-period="${k}" class="${statPeriod === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+
+    <div class="card">
+      <div class="card-head"><h2>${statPeriod === '7' ? 'Kunlik qazo (hafta)' : PERIODS.find((x) => x[0] === statPeriod)[1]}</h2><span class="sub">${num(ps.total)} ta</span></div>
+      <div class="chart ${bars.length > 14 ? 'dense' : ''}">
+        ${dayBuckets && sm.goal ? `<div class="goal-line" style="bottom:calc(22px + ${H} * ${sm.goal / max})"><span>reja ${sm.goal}</span></div>` : ''}
+        ${bars.map((b) => `<div class="col">
+          <div class="n">${b.future || bars.length > 14 ? '' : b.n}</div>
+          <div class="b ${b.isToday ? 'today' : ''} ${b.n ? '' : 'zero'}" style="height:calc(${H} * ${b.n / max})"></div>
+          <div class="d ${b.isToday ? 'today' : ''}">${bars.length > 14 && statPeriod === '30' ? (bars.indexOf(b) % 5 === 0 ? b.label : '') : b.label}</div></div>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Umumiy ko‘rsatkichlar</h2>
+      ${kv('🕌', 'Qolgan qazo', an('left', sm.remaining))}
+      ${kv('✅', 'Jami ado qilingan', an('done', sm.total))}
+      ${kv('📿', 'Bugun', `${an('today', sm.today)} / ${sm.goal}`)}
+      ${kv('📈', 'O‘rtacha (kuniga)', ps.avg)}
+      ${kv('📅', 'Eng faol kun', ps.bestWeekday || '—')}
+      ${kv('🏅', 'Eng yaxshi hafta', `${num(ps.bestWeek)} ta`)}
+      ${kv('⭐', 'Eng yaxshi kun', ps.best ? `${ps.best.n} ta · ${fmtDate(ps.best.date).slice(0, 5)}` : '—')}
+      ${kv('↕️', 'Oldingi davrga nisbatan', ps.change == null ? '—' : `${ps.change > 0 ? '+' : ''}${ps.change}%`, ps.change > 0 ? 'up' : ps.change < 0 ? 'down' : '')}
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Qazo bo‘yicha progress</h2><b style="color:var(--accent)">${sm.pct}%</b></div>
+      ${bar(sm.total, sm.total + sm.remaining, false, 'all-bar')}
+      ${finish ? `<div class="finish">Taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
     </div>
 
     <div class="card insight">
@@ -1026,35 +1154,7 @@ function renderStats() {
       ${insights(state, now).map((x) => `<div class="ins"><span>${x.icon}</span><div>${x.text}</div></div>`).join('')}
     </div>
 
-    ${heatHtml(now, sm.goal)}
-
-    <div class="card">
-      <div class="card-head"><h2>Umumiy progress</h2><b style="color:var(--accent);font-size:20px">${sm.pct}%</b></div>
-      ${bar(sm.total, sm.total + sm.remaining)}
-      <div class="row" style="margin-top:10px"><div class="grow sub">Ado qilindi: <b style="color:var(--text)">${num(sm.total)}</b></div>
-        <div class="sub">Qoldi: <b style="color:var(--text)">${num(sm.remaining)}</b></div></div>
-      ${finish ? `<div class="finish">Taxminiy tugash: ${fmtDate(finish)}</div>` : ''}
-    </div>
-
-    <div class="card">
-      <div class="seg seg5">${PERIODS.map(([k, l]) => `<button data-period="${k}" class="${statPeriod === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <div class="card-head" style="margin-top:14px"><h2>${PERIODS.find((x) => x[0] === statPeriod)[1]}</h2><span class="sub">${num(ps.total)} ta</span></div>
-      <div class="chart ${bars.length > 14 ? 'dense' : ''}">
-        ${dayBuckets && sm.goal ? `<div class="goal-line" style="bottom:calc(22px + ${H} * ${sm.goal / max})"><span>maqsad ${sm.goal}</span></div>` : ''}
-        ${bars.map((b) => `<div class="col">
-          <div class="n">${b.future || bars.length > 14 ? '' : b.n}</div>
-          <div class="b ${b.isToday ? 'today' : ''} ${b.n ? '' : 'zero'}" style="height:calc(${H} * ${b.n / max})"></div>
-          <div class="d ${b.isToday ? 'today' : ''}">${bars.length > 14 && statPeriod === '30' ? (bars.indexOf(b) % 5 === 0 ? b.label : '') : b.label}</div></div>`).join('')}
-      </div>
-      <div class="metrics">
-        <div><b>${ps.avg}</b><span>kuniga o‘rtacha</span></div>
-        <div><b>${ps.active}/${ps.days}</b><span>faol kunlar</span></div>
-        <div><b>${ps.best ? ps.best.n : '—'}</b><span>${ps.best ? `eng yaxshi kun · ${fmtDate(ps.best.date).slice(0, 5)}` : 'eng yaxshi kun'}</span></div>
-        <div><b>${num(ps.bestWeek)}</b><span>eng yaxshi hafta</span></div>
-        <div><b>${ps.bestWeekday || '—'}</b><span>eng faol kun</span></div>
-        <div><b class="${ps.change > 0 ? 'up' : ps.change < 0 ? 'down' : ''}">${ps.change == null ? '—' : `${ps.change > 0 ? '+' : ''}${ps.change}%`}</b><span>oldingi davrga nisbatan</span></div>
-      </div>
-    </div>
+    ${heatHtml(now)}
 
     <div class="card">
       <div class="streak">
@@ -1062,22 +1162,37 @@ function renderStats() {
         <div class="grow"><div class="v">${st.current} kun</div><div class="sub">ketma-ket qazo ado qilyapsiz</div></div>
         <div style="text-align:right"><div class="sub">Eng uzun</div><b style="font-size:20px">${st.best} kun</b></div>
       </div>
-      ${(() => { const gs = goalStreak(state, now); return sm.goal ? `<div class="streak" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+      ${sm.goal ? `<div class="streak" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
         <div class="fire">🎯</div>
         <div class="grow"><div class="v">${gs.current} kun</div><div class="sub">ketma-ket kunlik reja (${sm.goal} ta) to‘liq bajarildi</div></div>
-        <div style="text-align:right"><div class="sub">Eng uzun</div><b style="font-size:20px">${gs.best} kun</b></div></div>` : ''; })()}
-      <p class="hint">🔥 — kamida bitta qazo o‘qilgan kunlar; 🎯 — kunlik reja to‘liq bajarilgan kunlar.</p>
+        <div style="text-align:right"><div class="sub">Eng uzun</div><b style="font-size:20px">${gs.best} kun</b></div></div>` : ''}
     </div>
 
     <div class="card goals">
       <h2>🎯 Maqsadlar</h2>
       ${[['Kunlik', sm.today, sm.goal], ['Haftalik', sm.week, sm.weekGoal], ['Oylik', sm.month, sm.monthGoal]].map(([l, v, g]) => `
         <div class="g"><div class="gl"><span>${l}</span><b>${num(v)} / ${num(g)}</b></div>${bar(v, g, true)}</div>`).join('')}
-      <p class="hint">Maqsad kunlik reja asosida hisoblanadi (Qazo bo‘limida o‘zgartiriladi).</p>
     </div>
 
-    <div class="section">Yutuqlar <span class="sub" style="font-weight:600">${unlocked} / ${ach.length}</span></div>
-    <div class="ach">${(() => { const ud = unlockDates(state, now); return ach.map((a) => {
+    <button class="card ach-link" id="toAch">
+      <div class="row"><h2 class="grow" style="margin:0;text-align:left">🏆 Yutuqlar</h2><span class="sub">${unlocked.length} / ${ach.length} ›</span></div>
+      <div class="ach-prev">${(unlocked.length ? unlocked.slice(-4) : ach.slice(0, 4)).map((a) =>
+        `<span class="medal t-${a.tier} ${a.unlocked ? '' : 'off'}"><span class="m-ic">${a.icon}</span></span>`).join('')}</div>
+    </button>
+    <p class="hint">Statistika ilovaning 10-versiyasidan boshlab yuritiladi.</p>`;
+  $app.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { statPeriod = b.dataset.period; render(); }; });
+  $app.querySelector('#toAch').onclick = () => go('achievements');
+  bindHeat();
+}
+
+/* ---------------- Yutuqlar (medallar) ---------------- */
+function renderAchievements() {
+  const now = new Date();
+  const ach = achievements(state, now);
+  const ud = unlockDates(state, now);
+  $app.innerHTML = `
+    ${topbar('Yutuqlar', `${ach.filter((a) => a.unlocked).length} / ${ach.length} medal`, true)}
+    <div class="ach">${ach.map((a) => {
       const k = a.id === 'clear' ? (state.clearedAt ? dayKey(new Date(state.clearedAt)) : null) : ud[a.id];
       return `<button class="medal-c ${a.unlocked ? 'on' : 'off'} t-${a.tier}" data-medal aria-label="${esc(a.title)}: ${a.unlocked ? 'qo‘lga kiritildi' : 'hali yopiq'}. Orqa tomonini ko‘rish">
         <span class="m-in">
@@ -1085,31 +1200,34 @@ function renderStats() {
             <span class="bt">${a.title}</span><span class="bd">${a.unlocked ? TIER[a.tier] : `${num(a.value)} / ${num(a.need)}`}</span></span>
           <span class="m-face m-back"><span class="bt">${a.desc}</span>
             <span class="bd">${a.unlocked ? (k ? longDate(k) : 'Qo‘lga kiritildi') : `Yana ${num(a.need - a.value)} — ${TIER[a.tier]} medal`}</span></span>
-        </span></button>`; }).join(''); })()}</div>
-    <p class="hint">Medalni bossangiz — orqa tomonida qachon olinganini ko‘rasiz. Statistika ilovaning 10-versiyasidan boshlab yuritiladi.</p>`;
-  $app.querySelectorAll('[data-period]').forEach((b) => { b.onclick = () => { statPeriod = b.dataset.period; render(); }; });
+        </span></button>`; }).join('')}</div>
+    <p class="hint">Medalni bossangiz — orqa tomonida qachon olinganini ko‘rasiz.</p>`;
+  bindBack('stats');
   $app.querySelectorAll('[data-medal]').forEach((b) => { b.onclick = () => b.classList.toggle('flip'); });
-  $app.querySelectorAll('[data-hday]').forEach((b) => { b.onclick = () => {
-    const d = new Date(`${b.dataset.hday}T12:00:00`); cal = { y: d.getFullYear(), m: d.getMonth(), sel: b.dataset.hday }; go('calendar'); }; });
 }
 
 const TIER = { bronze: 'bronza', silver: 'kumush', gold: 'oltin', platinum: 'platina', diamond: 'olmos', emerald: 'zumrad' };
 const longDate = (k) => { const d = new Date(`${k}T12:00:00`); return `${d.getFullYear()}-yil ${d.getDate()}-${MONTHS[d.getMonth()].toLowerCase()}`; };
-const heatLegend = () => `<div class="heat-leg"><span>Kam</span>${[0, 1, 2, 3, 4].map((l) => `<i class="l${l}"></i>`).join('')}<span>Ko‘p</span></div>`;
+const heatLegend = () => `<div class="heat-leg">${[['l0', '0 ta'], ['l1', '1–5'], ['l2', '6–10'], ['l3', '11+']].map(([c, t]) =>
+  `<span><i class="${c}"></i>${t}</span>`).join('')}</div>`;
 
 // GitHub uslubidagi muntazamlik xaritasi
-function heatHtml(now, goal) {
+function heatHtml(now) {
   const hw = heatWeeks(state, now, 12);
   const days = hw.flat().filter((x) => x.n != null);
   const active = days.filter((x) => x.n > 0).length;
   return `<div class="card">
-    <div class="card-head"><h2>🗓 Muntazamlik</h2><span class="sub">oxirgi 12 hafta · ${active}/${days.length} kun</span></div>
+    <div class="card-head"><h2>🗓 Muntazamlik</h2><span class="sub">12 hafta · ${active}/${days.length} kun</span></div>
     <div class="heat">${WEEKDAYS.map((w, i) => `<span class="hw">${i % 2 ? '' : w}</span>${hw.map((wk) => {
       const c = wk[i];
       return c.n == null ? '<i class="hc fut"></i>'
-        : `<button class="hc l${heatLevel(c.n, goal)}" data-hday="${c.key}" aria-label="${c.key}: ${c.n} ta"></button>`; }).join('')}`).join('')}</div>
+        : `<button class="hc l${heatLevel(c.n)}" data-hday="${c.key}" aria-label="${c.key}: ${c.n} ta"></button>`; }).join('')}`).join('')}</div>
     ${heatLegend()}
   </div>`;
+}
+function bindHeat() {
+  $app.querySelectorAll('[data-hday]').forEach((b) => { b.onclick = () => {
+    const d = new Date(`${b.dataset.hday}T12:00:00`); cal = { y: d.getFullYear(), m: d.getMonth(), sel: b.dataset.hday }; go('history'); }; });
 }
 
 /* ---------------- Kalendar ---------------- */
@@ -1119,25 +1237,27 @@ function renderCalendar() {
   const goal = Number(state.settings.dailyGoal) || 0;
   const todayKey = dayKey(now);
   const cells = monthGrid(cal.y, cal.m);
-  let monthTotal = 0, active = 0;
+  let monthTotal = 0, active = 0, daysPast = 0;
   const html = cells.map((d) => {
     if (!d) return '<div></div>';
     const k = dayKey(d);
     const n = dayDone(state, k);
-    monthTotal += n; if (n) active++;
-    const cls = [`l${heatLevel(n, goal)}`, k === todayKey ? 'today' : '', k === cal.sel ? 'sel' : '', k > todayKey ? 'future' : ''].join(' ');
-    return `<button class="cell ${cls}" data-day="${k}">${d.getDate()}${n ? `<small>${n}</small>` : ''}</button>`;
+    monthTotal += n; if (n) active++; if (k <= todayKey) daysPast++;
+    const cls = [`l${heatLevel(n)}`, k === todayKey ? 'today' : '', k === cal.sel ? 'sel' : '', k > todayKey ? 'future' : ''].join(' ');
+    return `<button class="cell ${cls}" data-day="${k}" aria-label="${d.getDate()}: ${n} ta">${d.getDate()}</button>`;
   }).join('');
+  const prevM = new Date(cal.y, cal.m - 1, 1, 12);
+  const prevDays = new Date(cal.y, cal.m, 0).getDate();
+  let prevTotal = 0, prevActive = 0;
+  for (let i = 0; i < prevDays; i++) { const n = dayDone(state, dayKey(addDays(prevM, i))); prevTotal += n; if (n) prevActive++; }
 
   const sel = new Date(`${cal.sel}T12:00:00`);
-  const dd = state.done?.[cal.sel] || {};
   const lg = state.log?.[cal.sel] || {};
-  const onTime = PRAYERS.slice(0, 5).filter((p) => lg[p] === 'prayed').length;
-  const missed = PRAYERS.filter((p) => lg[p] === 'qazo').length;
   const n = dayDone(state, cal.sel);
+  const onTime = PRAYERS.slice(0, 5).filter((p) => lg[p] === 'prayed').length;
 
   $app.innerHTML = `
-    <div class="page-title">Kalendar</div>
+    ${topbar('Kalendar', '', false)}
     <div class="card" style="margin-top:0">
       <div class="cal-head">
         <button id="calPrev" aria-label="Oldingi oy">‹</button>
@@ -1146,33 +1266,71 @@ function renderCalendar() {
       </div>
       <div class="cal">${WEEKDAYS.map((w) => `<div class="wd">${w}</div>`).join('')}${html}</div>
       ${heatLegend()}
-      <p class="hint" style="margin-top:4px">Rang qancha to‘q bo‘lsa — o‘sha kuni shuncha ko‘p qazo ado qilingan${goal ? ` (to‘q yashil — kunlik reja ${goal} ta bajarilgan)` : ''}.</p>
-      <div class="row" style="margin-top:12px"><div class="grow sub">Bu oyda: <b style="color:var(--text)">${num(monthTotal)} ta</b> qazo</div>
-        <div class="sub">${active} kun faol</div></div>
     </div>
 
+    <button class="card day-card" id="toHistory">
+      <div class="row"><div class="grow" style="text-align:left"><b>${dayTitle(sel)}</b>
+        <div class="sub">${n ? `${n} ta qazo ado qilingan` : 'Qazo ado qilinmagan'}${Object.keys(lg).length ? ` · o‘z vaqtida ${onTime}/5` : ''}${goal && n >= goal ? ' · 🎯 reja bajarilgan' : ''}</div></div>
+        <span class="pill green">Qazo tarixi ›</span></div>
+    </button>
+
     <div class="card">
-      <h2>${dayTitle(sel)}</h2>
-      <div class="dl"><span>Ado qilingan qazo</span><b>${n ? `${n} ta` : '—'}</b></div>
-      ${PRAYERS.filter((p) => dd[p]).map((p) => `<div class="dl"><span class="sub">${ICONS[p]} ${NAMES[p]}</span><span>${dd[p]}</span></div>`).join('')}
-      ${Object.keys(lg).length ? `
-        <div class="dl"><span>O‘z vaqtida o‘qilgan</span><b>${onTime} / 5</b></div>
-        <div class="dl"><span>Qazoga tushgan</span><b style="color:${missed ? 'var(--red)' : 'inherit'}">${missed}</b></div>
-        <div class="sheet-l" style="margin-top:14px">✏️ Namozlar holati — xato bo‘lsa, bosib o‘zgartiring</div>
-        ${PRAYERS.filter((p) => lg[p]).map((p) => {
-          const st = lg[p];
-          const opt = (v, t) => `<button class="stbtn ${st === v ? `on ${v}` : ''}" data-st="${p}" data-v="${v}" aria-pressed="${st === v}">${t}</button>`;
-          return `<div class="dl st-row"><span>${ICONS[p]} ${NAMES[p]}</span>
-            <span class="st-group">${opt('prayed', '✓ O‘qildi')}${opt('qazo', 'Qazo')}${opt('excused', 'Uzrli')}</span></div>`;
-        }).join('')}
-        <p class="hint">“Qazo” tanlansa — qazo hisobiga 1 qo‘shiladi, “O‘qildi” yoki “Uzrli” tanlansa — ayriladi.</p>` : ''}
-      ${goal && n >= goal ? '<div class="finish">🎯 Kunlik maqsad bajarilgan</div>' : ''}
+      <div class="kv"><span class="kv-i">📅</span><span class="grow">${MONTHS[cal.m]}: jami</span><b>${num(monthTotal)} ta</b></div>
+      <div class="kv"><span class="kv-i">🔥</span><span class="grow">Faol kunlar</span><b>${active} kun</b></div>
+      <div class="kv"><span class="kv-i">📈</span><span class="grow">O‘rtacha (kuniga)</span><b>${daysPast ? (monthTotal / daysPast).toFixed(1) : '0'}</b></div>
+      <div class="kv"><span class="kv-i">↩️</span><span class="grow">O‘tgan oy (${MONTHS[prevM.getMonth()]})</span><b>${num(prevTotal)} ta · ${prevActive} kun</b></div>
     </div>`;
 
   const shift = (dm) => { const d = new Date(cal.y, cal.m + dm, 1); cal.y = d.getFullYear(); cal.m = d.getMonth(); render(); };
   $app.querySelector('#calPrev').onclick = () => shift(-1);
   $app.querySelector('#calNext').onclick = () => shift(1);
-  $app.querySelectorAll('[data-day]').forEach((b) => { b.onclick = () => { cal.sel = b.dataset.day; render(); }; });
+  $app.querySelectorAll('[data-day]').forEach((b) => { b.onclick = () => {
+    if (cal.sel === b.dataset.day) return go('history');
+    cal.sel = b.dataset.day; render(); }; });
+  $app.querySelector('#toHistory').onclick = () => go('history');
+}
+
+/* ---------------- Qazo tarixi (kun bo'yicha tahrirlash) ---------------- */
+let histEdit = false;
+function renderHistory() {
+  const now = new Date();
+  cal ||= { y: now.getFullYear(), m: now.getMonth(), sel: dayKey(now) };
+  const sel = new Date(`${cal.sel}T12:00:00`);
+  const lg = state.log?.[cal.sel] || {};
+  const dd = state.done?.[cal.sel] || {};
+  const n = dayDone(state, cal.sel);
+  const list = PRAYERS.filter((p) => p !== 'vitr' || lg[p] || dd[p] || state.settings.includeVitr);
+  const pillOf = (st) => st === 'prayed' ? '<span class="spill ok">O‘qildi</span>' : st === 'qazo' ? '<span class="spill bad">Qazo</span>'
+    : st === 'excused' ? '<span class="spill">Uzrli</span>' : '<span class="spill none">—</span>';
+  $app.innerHTML = `
+    ${topbar('Qazo tarixi', '', true)}
+    <div class="datenav">
+      <button id="hPrev" aria-label="Oldingi kun">‹</button>
+      <b>📅 ${sel.getDate()} ${MONTHS[sel.getMonth()]} ${sel.getFullYear()}</b>
+      <button id="hNext" aria-label="Keyingi kun" ${cal.sel >= dayKey(now) ? 'disabled' : ''}>›</button>
+    </div>
+    ${list.map((p) => {
+      const st = lg[p];
+      const opt = (v, t) => `<button class="stbtn ${st === v ? `on ${v}` : ''}" data-st="${p}" data-v="${v}" aria-pressed="${st === v}">${t}</button>`;
+      return `<div class="prow">
+        <div class="p-ico">${ICONS[p]}</div>
+        <div class="grow"><div class="pname">${NAMES[p]}</div><div class="sub">${dd[p] ? `${dd[p]} ta qazo ado qilingan` : 'qazo o‘qilmagan'}</div></div>
+        ${histEdit && st ? `<span class="st-group">${opt('prayed', '✓')}${opt('qazo', 'Qazo')}${opt('excused', 'Uzrli')}</span>` : pillOf(st)}
+      </div>`; }).join('')}
+    <div class="card hist-foot">
+      <div class="grow"><span class="sub">Jami ado qilingan</span><br><b>${n} ta</b></div>
+      ${Object.keys(lg).length ? `<button class="${histEdit ? 'primary' : ''}" id="hEdit">${histEdit ? '✓ Tayyor' : '✏️ Tahrirlash'}</button>` : ''}
+    </div>
+    <p class="hint">${histEdit ? '“Qazo” tanlansa — qazo hisobiga 1 qo‘shiladi, “✓ O‘qildi” yoki “Uzrli” tanlansa — ayriladi.'
+      : 'Namoz noto‘g‘ri belgilangan bo‘lsa (masalan, o‘qigan edingiz, lekin qazoga tushgan) — “Tahrirlash”ni bosing.'}
+      “—” — bu kun ilova hali kuzatmagan yoki vaqti kirmagan.</p>`;
+
+  bindBack('calendar');
+  const step = (dd2) => { const d = addDays(sel, dd2); if (dayKey(d) > dayKey(now)) return; cal.sel = dayKey(d); cal.y = d.getFullYear(); cal.m = d.getMonth(); render(); };
+  $app.querySelector('#hPrev').onclick = () => step(-1);
+  $app.querySelector('#hNext').onclick = () => step(1);
+  const e = $app.querySelector('#hEdit');
+  if (e) e.onclick = () => { histEdit = !histEdit; render(); };
   $app.querySelectorAll('[data-st]').forEach((b) => {
     b.onclick = () => {
       const p = b.dataset.st, v = b.dataset.v;
@@ -1182,6 +1340,70 @@ function renderCalendar() {
       toast(`${NAMES[p]}: ${v === 'prayed' ? 'o‘qilgan' : v === 'qazo' ? 'qazo (+1)' : 'uzrli'} deb belgilandi`);
     };
   });
+}
+
+/* ---------------- Menyu ---------------- */
+function renderMenu() {
+  const ach = achievements(state, new Date());
+  const items = [
+    ['journey', '🗺', 'Qazo yo‘li', `${journey(state).pct}% yo‘l bosildi`],
+    ['qazo', '📿', 'Bugungi reja', 'Qazolarni belgilash va qo‘shish'],
+    ['focus', '🌿', 'Focus rejimi', 'Faqat qazo o‘qish uchun'],
+    ['history', '🗓', 'Qazo tarixi', 'Kunlar bo‘yicha ko‘rish va tahrirlash'],
+    ['achievements', '🏆', 'Yutuqlar', `${ach.filter((a) => a.unlocked).length} / ${ach.length} medal`],
+    ['learn', '📖', 'Qo‘llanma', 'Namoz va qazo o‘qish tartibi'],
+    ['themes', '🎨', 'Mavzular', THEMES.find((t) => t[0] === resolvedTheme())?.[2] || ''],
+    ['settings', '⚙️', 'Sozlamalar', 'Joylashuv, vaqtlar, bildirishnomalar, zaxira'],
+    ['share', '💚', 'Ilovani ulashish', 'Do‘stlaringizga yuboring — savobiga sherik bo‘ling'],
+  ];
+  if (hasSupport()) items.push(['support', '🤝', 'Qo‘llab-quvvatlash', 'Loyihaga yordam']);
+  $app.innerHTML = `
+    ${topbar('Menyu', '', false)}
+    <div class="menu">${items.map(([k, ic, t, sub]) => `<button class="mi" data-mi="${k}">
+      <span class="mi-i">${ic}</span><span class="grow"><b>${t}</b><span class="sub">${sub}</span></span><span class="mi-a">›</span></button>`).join('')}</div>
+    <div class="ver">Namoz va Qazo · ${APP_VERSION}-versiya</div>`;
+  $app.querySelectorAll('[data-mi]').forEach((b) => { b.onclick = () => {
+    const k = b.dataset.mi;
+    if (k === 'focus') return openFocus();
+    if (k === 'share') return shareApp();
+    if (k === 'history') { const d = new Date(); cal ||= { y: d.getFullYear(), m: d.getMonth(), sel: dayKey(d) }; }
+    go(k);
+  }; });
+}
+
+/* ---------------- Mavzular ---------------- */
+function themeScene(k) {
+  const sc = {
+    emerald: ['#0F3B30', '#2E7D5B', '#E9C46A'], dark: ['#0A1430', '#2B3D78', '#F6E7B0'], sand: ['#8A4A2A', '#E8A867', '#FFE2A8'],
+    kaaba: ['#141414', '#4A3A1E', '#E6C35C'], ramadan: ['#2A1C5E', '#7A4FB0', '#F2C964'], light: ['#DAD7CC', '#F4F2EA', '#B9B4A4'],
+  }[k] || ['#333', '#666', '#fff'];
+  const fg = k === 'light' ? '#9A9585' : '#050B09';
+  return `<svg viewBox="0 0 120 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs><linearGradient id="tg-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sc[0]}"/><stop offset="1" stop-color="${sc[1]}"/></linearGradient></defs>
+    <rect width="120" height="80" fill="url(#tg-${k})"/>
+    ${k === 'kaaba' ? `<path d="M44 46 L50 40 H82 L76 46Z" fill="#2a2a2a"/><path d="M76 46 L82 40 V64 L76 70Z" fill="#161616"/><rect x="44" y="46" width="32" height="24" fill="#0b0b0b"/><rect x="44" y="51" width="32" height="3.5" fill="${sc[2]}"/>`
+      : `<circle cx="${k === 'sand' ? 60 : 92}" cy="${k === 'sand' ? 52 : 18}" r="${k === 'sand' ? 16 : 6}" fill="${sc[2]}" opacity=".9"/>
+      <path d="M38 80 V56 C38 44 50 38 60 34 C70 38 82 44 82 56 V80Z M59.3 34 v-6 h1.4 v6Z M26 80 V44 h5 V80Z M24.5 44 L28.5 34 L32.5 44Z M89 80 V44 h5 V80Z M87.5 44 L91.5 34 L95.5 44Z M0 74 H120 V80 H0Z" fill="${fg}"/>`}
+    ${k === 'ramadan' ? '<path d="M18 8 v10" stroke="#F2C964" stroke-width="1"/><rect x="14.5" y="18" width="7" height="10" rx="2" fill="#F2C964"/>' : ''}
+  </svg>`;
+}
+function renderThemes() {
+  const cur = getTheme();
+  const tiles = THEMES.filter((t) => t[0] !== 'auto');
+  $app.innerHTML = `
+    ${topbar('Mavzular', 'Ilova ko‘rinishini tanlang', true)}
+    <div class="theme-grid">${tiles.map(([k, ic, l]) => `<button class="tt ${cur === k ? 'on' : ''}" data-theme-set="${k}" aria-pressed="${cur === k}">
+      ${themeScene(k)}<span class="tt-l">${ic} ${l}</span>${cur === k ? '<span class="tt-ok">✓</span>' : ''}</button>`).join('')}</div>
+    <div class="card">
+      <div class="switch" style="margin-top:0"><span>📱 Telefon mavzusiga moslash<br><span class="sub">Kunduzi — Minimal, kechasi — Zumrad</span></span>
+        <input type="checkbox" id="autoT" ${cur === 'auto' ? 'checked' : ''} /></div>
+      <div class="switch"><span>🌌 Jonli osmon<br><span class="sub">Bosh sahifa foni namoz vaqtiga qarab o‘zgaradi: tong, kun, oltin soat, shom, yulduzli tun</span></span>
+        <input type="checkbox" id="skyT" ${skyOn() ? 'checked' : ''} /></div>
+    </div>`;
+  bindBack('menu');
+  $app.querySelectorAll('[data-theme-set]').forEach((b) => { b.onclick = () => setTheme(b.dataset.themeSet); });
+  $app.querySelector('#autoT').onchange = (e) => setTheme(e.target.checked ? 'auto' : 'emerald');
+  $app.querySelector('#skyT').onchange = (e) => { try { localStorage.setItem(SKY_KEY, e.target.checked ? 'on' : 'off'); } catch {} };
 }
 
 /* ---------------- Joylashuv bloki (sozlash va sozlamalarda) ---------------- */
@@ -1357,11 +1579,7 @@ function renderSettings() {
     <div class="page-title">Sozlamalar</div>
 
     <div class="section" style="margin-top:4px">Ko‘rinish</div>
-    <div class="themes">${THEMES.map(([k, ic, l, sw]) => `<button data-theme-set="${k}" class="th ${getTheme() === k ? 'on' : ''}" aria-pressed="${getTheme() === k}">
-      <span class="sw" style="background:${sw ? `linear-gradient(135deg, ${sw[1]} 50%, ${sw[0]} 50%)` : 'linear-gradient(135deg, #F4F2EA 50%, #08130F 50%)'}"></span>
-      <span>${ic} ${l}</span></button>`).join('')}</div>
-    <div class="switch"><span>🌌 Jonli osmon<br><span class="sub">Bosh sahifa foni namoz vaqtiga qarab o‘zgaradi: tong, kun, oltin soat, shom, yulduzli tun</span></span>
-      <input type="checkbox" id="skyT" ${skyOn() ? 'checked' : ''} /></div>
+    <button class="mi" id="toThemes"><span class="mi-i">🎨</span><span class="grow"><b>Mavzular</b><span class="sub">${THEMES.find((t) => t[0] === getTheme())?.[2] || ''} · jonli osmon</span></span><span class="mi-a">›</span></button>
     ${installHtml(true)}
 
     <div class="section">Joylashuv</div>
@@ -1428,8 +1646,7 @@ function renderSettings() {
   const ra = $app.querySelector('#resetAll');
   if (ra) ra.onclick = () => { f.offsets = {}; render(); };
 
-  $app.querySelectorAll('[data-theme-set]').forEach((b) => { b.onclick = () => setTheme(b.dataset.themeSet); });
-  $app.querySelector('#skyT').onchange = (e) => { try { localStorage.setItem(SKY_KEY, e.target.checked ? 'on' : 'off'); } catch {} };
+  $app.querySelector('#toThemes').onclick = () => go('themes');
   bindNotify(f);
   $app.querySelector('#shareBtn').onclick = shareApp;
   const cu = $app.querySelector('#checkUpd');
@@ -1629,13 +1846,13 @@ function bindInputs(f) {
 }
 
 /* ---------------- Android "Orqaga" tugmasi ---------------- */
+const BACK_TO = { support: 'settings', history: 'calendar', achievements: 'stats', themes: 'menu', learn: 'menu', settings: 'menu' };
 function onBack() {
   const sheet = document.querySelector('.sheet-bg');
   if (sheet) return sheet.remove();
   if (!state.settings) return window.Capacitor?.Plugins?.App?.minimizeApp?.();
-  if (screen === 'support') return go('settings');
   if (screen === 'quote') return go(quoteFrom);
-  if (screen === 'qibla' || screen === 'focus') return go('home');
+  if (BACK_TO[screen]) return go(BACK_TO[screen]);
   if (screen !== 'home') return go('home');
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }

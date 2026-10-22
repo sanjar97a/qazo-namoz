@@ -1,6 +1,6 @@
 // Oflayn ishlash uchun: fayllarni keshda saqlaydi. Yangilash chiqarganda VERSION ni oshiring.
-const VERSION = 'namoz-qazo-v22';
-const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'location.js', 'official.js', 'notify.js', 'quotes.js', 'stats.js', 'learn.js', 'qibla.js', 'journey.js', 'geomag.js', 'channel.js', 'adhan.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const VERSION = 'namoz-qazo-v23';
+const FILES = ['./', 'index.html', 'app.js', 'prayer.js', 'location.js', 'official.js', 'notify.js', 'quotes.js', 'stats.js', 'learn.js', 'qibla.js', 'journey.js', 'geomag.js', 'channel.js', 'adhan.js', 'fonts/heading.woff2', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('message', (e) => { if (e.data === 'skipWaiting') self.skipWaiting(); });
 

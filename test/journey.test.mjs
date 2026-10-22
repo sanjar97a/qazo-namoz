@@ -34,7 +34,7 @@ test('Aqlli tahlil, yutuq sanalari, issiqlik xaritasi', () => {
   assert.equal(u.first, '2026-10-12');
   assert.equal(u.goal, '2026-10-19');
   assert.equal(u.t100, undefined);
-  assert.deepEqual([0, 1, 3, 5, 12].map((n) => heatLevel(n, 5)), [0, 1, 2, 3, 4]);
+  assert.deepEqual([0, 1, 5, 6, 10, 11, 40].map((n) => heatLevel(n)), [0, 1, 1, 2, 2, 3, 3]);
   const hw = heatWeeks(s, at(2026, 10, 21), 2);
   assert.equal(hw[1][0].n, 6); assert.equal(hw[1][4].n, null);
   assert.equal(durationText(400), '13 oy');
