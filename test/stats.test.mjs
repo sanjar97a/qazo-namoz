@@ -91,3 +91,15 @@ test('Davr statistikasi', () => {
   assert.equal(periodStats(s, 'all', at(2026, 10, 21)).total, 120);
   assert.equal(periodStats({ ...base(), done: {} }, 'all', at(2026, 10, 21)).total, 0);
 });
+
+import { goalStreak, journey } from '../stats.js';
+
+test('Maqsad streak va qazo safari', () => {
+  const s = { ...base(), done: { '2026-10-18': { fajr: 5 }, '2026-10-19': { fajr: 6 }, '2026-10-20': { fajr: 2 }, '2026-10-21': { fajr: 5 } } };
+  assert.deepEqual(goalStreak(s, at(2026, 10, 21)), { current: 1, best: 2 });
+  const j = journey({ ...s, startTotal: 0 });
+  assert.equal(j.done, 18); assert.equal(j.left, 600); assert.equal(j.start, 618);
+  assert.equal(journey({ ...s, startTotal: 1000 }).start, 1000);
+  const a = Object.fromEntries(achievements(s, at(2026, 10, 21)).map((x) => [x.id, x.unlocked]));
+  assert.equal(a.g10, false); assert.equal(a.t10000, false);
+});

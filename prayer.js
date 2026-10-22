@@ -201,7 +201,7 @@ export function processMissed(state, now = new Date()) {
   }
 
   return {
-    state: { ...state, qazo, log: pruneLog(log, now), lastProcessed: now.getTime() },
+    state: { ...state, qazo, log, lastProcessed: now.getTime() }, // tarix to'liq saqlanadi (o'chirilmaydi)
     added,
   };
 }
@@ -220,8 +220,8 @@ export function togglePrayed(state, day, p, now = new Date()) {
   return { ...state, log: { ...state.log, [key]: dayLog } };
 }
 
-// Avtomatik qazoga tushgan, lekin aslida o'qilgan namozni tuzatish (oxirgi 7 kun ichida)
-export const UNDO_DAYS = 7;
+// Avtomatik qazoga tushgan, lekin aslida o'qilgan namozni tuzatish (oxirgi 30 kun ichida)
+export const UNDO_DAYS = 30;
 export function undoQazo(state, key, p, now = new Date()) {
   if (state.log?.[key]?.[p] !== 'qazo') return state;
   if (key < dayKey(addDays(now, -UNDO_DAYS))) return state;
@@ -232,12 +232,6 @@ export function undoQazo(state, key, p, now = new Date()) {
   };
 }
 
-function pruneLog(log, now) {
-  const limit = dayKey(addDays(now, -60));
-  const out = {};
-  for (const k of Object.keys(log)) if (k >= limit) out[k] = log[k];
-  return out;
-}
 
 // Boshlang'ich qazo: balog'at sanasidan namozni boshlagan sanagacha bo'lgan kunlar.
 // Ayollar uchun oyiga o'rtacha hayz kunlari ayirib tashlanadi.
@@ -262,4 +256,18 @@ export function estimatedFinish(state, now = new Date()) {
   const total = totalQazo(state);
   if (goal <= 0 || total === 0) return null;
   return addDays(now, Math.ceil(total / goal));
+}
+
+// Tarix tahrirlovchisi: o'tgan kundagi namoz holatini almashtirish ('prayed' | 'qazo' | 'excused').
+// Qazo hisobi mos ravishda o'zgaradi. Vaqti hali tugamagan namozni bu yerda o'zgartirib bo'lmaydi.
+export function setDayStatus(state, key, p, status, now = new Date()) {
+  const cur = state.log?.[key]?.[p];
+  if (cur === status || !['prayed', 'qazo', 'excused'].includes(status)) return state;
+  const day = new Date(`${key}T12:00:00`);
+  const { windows } = dayWindows(day, state.settings);
+  if (!windows[p] || windows[p].end > now) return state;
+  let n = state.qazo[p] || 0;
+  if (cur === 'qazo') n = Math.max(0, n - 1);
+  if (status === 'qazo') n += 1;
+  return { ...state, qazo: { ...state.qazo, [p]: n }, log: { ...state.log, [key]: { ...state.log[key], [p]: status } } };
 }

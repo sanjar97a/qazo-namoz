@@ -102,7 +102,7 @@ test('Xato qazoni tuzatish', () => {
   assert.equal(s2.qazo.asr, 0);
   assert.equal(s2.log['2026-10-19'].asr, 'prayed');
   assert.equal(undoQazo(s2, '2026-10-19', 'asr', at(2026, 10, 20, 9)), s2); // ikkinchi marta o'zgarmaydi
-  assert.equal(undoQazo(s1, '2026-10-19', 'asr', at(2026, 11, 5, 9)), s1);  // 7 kundan eski — mumkin emas
+  assert.equal(undoQazo(s1, '2026-10-19', 'asr', at(2026, 12, 1, 9)), s1);  // 30 kundan eski — mumkin emas
   const again = processMissed(s2, at(2026, 10, 20, 9));
   assert.equal(again.state.log['2026-10-19'].asr, 'prayed'); // qayta qazoga tushmaydi
 });
@@ -122,4 +122,23 @@ test('Qibla yo‘nalishi va magnit og‘ish', () => {
   // Quyosh: Namanganda peshin paytida (taxminan 12:00) azimut ~180°
   const noon = sunPosition(new Date('2026-10-21T06:58:00Z'), 40.9983, 71.6726);
   assert.ok(Math.abs(noon.azimuth - 180) < 2 && noon.altitude > 30);
+});
+
+import { setDayStatus, UNDO_DAYS } from '../prayer.js';
+
+test('Tarix saqlanadi va tahrirlanadi', () => {
+  const s0 = { ...base, lastProcessed: at(2026, 6, 1, 12).getTime() };
+  const r = processMissed(s0, at(2026, 10, 21, 12));
+  assert.ok(r.state.log['2026-06-02']); // 60 kundan eski tarix o'chmaydi
+  assert.equal(UNDO_DAYS, 30);
+  let s = r.state;
+  const before = s.qazo.asr;
+  s = setDayStatus(s, '2026-06-02', 'asr', 'prayed', at(2026, 10, 21, 12));
+  assert.equal(s.qazo.asr, before - 1);
+  s = setDayStatus(s, '2026-06-02', 'asr', 'excused', at(2026, 10, 21, 12));
+  assert.equal(s.qazo.asr, before - 1);
+  s = setDayStatus(s, '2026-06-02', 'asr', 'qazo', at(2026, 10, 21, 12));
+  assert.equal(s.qazo.asr, before);
+  // Vaqti tugamagan namoz o'zgarmaydi
+  assert.equal(setDayStatus(s, '2026-10-21', 'isha', 'qazo', at(2026, 10, 21, 12)), s);
 });

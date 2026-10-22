@@ -81,9 +81,12 @@ export function buildSchedule(state, now = new Date()) {
     });
     if (n.daily) {
       const at = atTime(day, n.daily);
-      if (at > now) {
+      const goal = Number(s.dailyGoal) || 0;
+      const doneToday = i === 0 ? Object.values(state.done?.[dayKey(at)] || {}).reduce((x, y) => x + y, 0) : 0;
+      if (at > now && !(i === 0 && goal && doneToday >= goal)) { // bugungi reja bajarilgan bo'lsa — eslatmaydi
         const qo = pick(QAZO, dayNo), q = fmtQuote(qo);
-        list.push({ id: i * 100 + 50, at, quote: qo.id, title: `📿 Qazo vaqti · bugungi maqsad ${s.dailyGoal || 0} ta`,
+        list.push({ id: i * 100 + 50, at, quote: qo.id,
+          title: doneToday ? `📿 Bugungi reja: ${doneToday}/${goal} · yana ${Math.max(0, goal - doneToday)} ta qoldi` : `📿 Qazo vaqti · bugungi maqsad ${s.dailyGoal || 0} ta`,
           body: q, largeBody: `${q}\n\nJami qoldi: ${totalQazo(state)} ta. Bugun ${s.dailyGoal || 0} tasini ado qilaylik.` });
       }
     }

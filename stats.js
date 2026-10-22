@@ -103,13 +103,43 @@ export function streak(state, now = new Date()) {
   return { current, best: Math.max(best, current) };
 }
 
+// Maqsad bajarilgan kunlar ketma-ketligi (kunlik reja to'liq bajarilgan kunlar)
+export function goalStreak(state, now = new Date()) {
+  const goal = Number(state.settings?.dailyGoal) || 0;
+  if (!goal) return { current: 0, best: 0 };
+  const met = (k) => dayDone(state, k) >= goal;
+  let d = noon(now);
+  if (!met(dayKey(d))) d = addDays(d, -1);
+  let current = 0;
+  while (met(dayKey(d))) { current++; d = addDays(d, -1); }
+  const keys = Object.keys(state.done || {}).filter(met).sort();
+  let best = 0, run = 0, prev = null;
+  for (const k of keys) {
+    const cur = new Date(`${k}T12:00:00`);
+    run = prev && Math.round((cur - prev) / 86400000) === 1 ? run + 1 : 1;
+    best = Math.max(best, run); prev = cur;
+  }
+  return { current, best: Math.max(best, current) };
+}
+
+// Qazo safari: boshlanishdagi jami, ado qilingan, qolgan
+export function journey(state) {
+  const done = totalDone(state), left = totalQazo(state);
+  const start = Math.max(Number(state.startTotal) || 0, done + left);
+  return { start, done, left, pct: start ? Math.round((done / start) * 1000) / 10 : 0 };
+}
+
 const ACH = [
   { id: 'first', icon: '🌱', title: 'Birinchi qadam', desc: '1 ta qazo ado qilindi', kind: 'total', need: 1 },
   { id: 't100', icon: '🏅', title: '100 talik', desc: '100 ta qazo ado qilindi', kind: 'total', need: 100 },
   { id: 't500', icon: '🥈', title: '500 talik', desc: '500 ta qazo', kind: 'total', need: 500 },
   { id: 't1000', icon: '🥇', title: '1000 talik', desc: '1 000 ta qazo', kind: 'total', need: 1000 },
   { id: 't5000', icon: '🏆', title: '5000 talik', desc: '5 000 ta qazo', kind: 'total', need: 5000 },
+  { id: 't10000', icon: '👑', title: '10 000 talik', desc: '10 000 ta qazo', kind: 'total', need: 10000 },
   { id: 'goal', icon: '🎯', title: 'Maqsadga yetdim', desc: 'Bir kunda kunlik maqsad bajarildi', kind: 'goalDays', need: 1 },
+  { id: 'g10', icon: '🎯', title: '10 kun reja', desc: '10 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 10 },
+  { id: 'g30', icon: '🏹', title: '30 kun reja', desc: '30 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 30 },
+  { id: 'g100', icon: '⭐', title: '100 kun reja', desc: '100 kun ketma-ket maqsad bajarildi', kind: 'goalStreak', need: 100 },
   { id: 's7', icon: '🔥', title: '7 kun', desc: '7 kun ketma-ket', kind: 'streak', need: 7 },
   { id: 's30', icon: '🔥', title: '30 kun', desc: '30 kun ketma-ket', kind: 'streak', need: 30 },
   { id: 's100', icon: '💎', title: '100 kun', desc: '100 kun ketma-ket', kind: 'streak', need: 100 },
@@ -124,7 +154,7 @@ export function achievements(state, now = new Date()) {
   const goalDays = goal ? Object.keys(state.done || {}).filter((k) => dayDone(state, k) >= goal).length : 0;
   const onTimeDays = Object.values(state.log || {}).filter((d) => PRAYERS.slice(0, 5).every((p) => d?.[p] === 'prayed')).length;
   const clear = total > 0 && totalQazo(state) === 0 ? 1 : 0;
-  const val = { total, streak: best, goalDays, onTimeDays, clear };
+  const val = { total, streak: best, goalDays, onTimeDays, clear, goalStreak: goalStreak(state, now).best };
   return ACH.map((a) => ({ ...a, value: Math.min(val[a.kind], a.need), unlocked: val[a.kind] >= a.need }));
 }
 
