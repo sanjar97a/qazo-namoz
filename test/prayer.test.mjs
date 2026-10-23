@@ -142,3 +142,17 @@ test('Tarix saqlanadi va tahrirlanadi', () => {
   // Vaqti tugamagan namoz o'zgarmaydi
   assert.equal(setDayStatus(s, '2026-10-21', 'isha', 'qazo', at(2026, 10, 21, 12)), s);
 });
+
+test('Hayot davrlari bo‘yicha taxminiy qazo', async () => {
+  const { estimateFromPeriods } = await import('../prayer.js');
+  const r = estimateFromPeriods({ age: 30, bulughAge: 13, includeVitr: true,
+    periods: [{ to: 20, pct: 0 }, { to: 26, pct: 50 }, { to: null, pct: 90 }] });
+  assert.equal(r.rows.length, 3);
+  assert.deepEqual(r.rows.map((x) => [x.from, x.to]), [[13, 20], [20, 26], [26, 30]]);
+  assert.equal(r.days, Math.round((7 + 3 + 0.4) * 365.2425));
+  assert.equal(r.q.vitr, r.days);
+  const w = estimateFromPeriods({ age: 30, bulughAge: 13, includeVitr: false, gender: 'ayol', hayzDays: 6, periods: [{ to: null, pct: 0 }] });
+  assert.equal(w.q.vitr, 0);
+  assert.equal(w.days, Math.round(17 * 365.2425 * 0.8));
+  assert.equal(estimateFromPeriods({ age: 10, bulughAge: 13, periods: [{ pct: 0 }] }).ok, false);
+});

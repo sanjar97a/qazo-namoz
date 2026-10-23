@@ -1,6 +1,6 @@
 import {
   METHODS, NAMES, PRAYERS, TIME_KEYS, TIME_NAMES, activePrayers, addDays, baseTimes, currentPrayerDay, dayKey, dayWindows,
-  estimatedFinish, fmtDate, fmtTime, initialQazo, parseDate, processMissed, suggestMethod, togglePrayed, totalQazo,
+  estimateFromPeriods, estimatedFinish, fmtDate, fmtTime, initialQazo, parseDate, processMissed, suggestMethod, togglePrayed, totalQazo,
   undoQazo, UNDO_DAYS, setDayStatus,
 } from './prayer.js';
 import { CHANNEL } from './channel.js';
@@ -38,7 +38,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '24';
+export const APP_VERSION = '25';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -257,7 +257,7 @@ const TABS = [
   ['qibla', 'Qibla', '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/>'],
   ['menu', 'Menyu', '<path d="M4 6h16M4 12h16M4 18h16"/>'],
 ];
-const TAB_OF = { qazo: 'home', journey: 'home', quote: 'home', focus: 'home', achievements: 'stats', history: 'calendar',
+const TAB_OF = { estimate: 'home', qazo: 'home', journey: 'home', quote: 'home', focus: 'home', achievements: 'stats', history: 'calendar',
   learn: 'menu', settings: 'menu', support: 'menu', themes: 'menu' };
 function tabbarHtml() {
   const active = TAB_OF[screen] || screen;
@@ -291,6 +291,7 @@ function render() {
   else if (screen === 'quote') renderQuote();
   else if (screen === 'qibla') renderQibla();
   else if (screen === 'journey') renderJourney();
+  else if (screen === 'estimate') renderEstimate();
   else if (screen === 'history') renderHistory();
   else if (screen === 'achievements') renderAchievements();
   else if (screen === 'menu') renderMenu();
@@ -866,6 +867,7 @@ function renderQazo() {
 
     ${rows}
     <button class="btn primary big" id="addQazo">＋ Qazo qo‘shish</button>
+    <button class="btn" id="toEst">🧮 Qazo kalkulyatori — eski qazolarni hisoblash</button>
     ${sm.remaining ? '<button class="btn" id="toFocus">🌿 Focus rejimida o‘qish</button>' : ''}
 
     ${sm.remaining === 0 && sm.total > 0 ? `<div class="card" style="text-align:center"><div style="font-size:40px">🌙</div>
@@ -893,6 +895,7 @@ function renderQazo() {
   $app.querySelectorAll('[data-ado]').forEach((b) => { b.onclick = () => doneAction(b.dataset.ado, 1); });
   $app.querySelector('#toLearnQ').onclick = () => { learnOpen = 'qazo'; go('learn'); };
   $app.querySelector('#addQazo').onclick = openAddSheet;
+  $app.querySelector('#toEst').onclick = () => go('estimate');
   $app.querySelector('#toFocus')?.addEventListener('click', openFocus);
   const ext = $app.querySelector('#exToggle');
   if (ext) ext.onchange = (e) => setExcused(e.target.checked);
@@ -1354,6 +1357,7 @@ function renderMenu() {
     ['journey', '🗺', 'Qazo yo‘li', `${journey(state).pct}% yo‘l bosildi`],
     ['qazo', '📿', 'Bugungi reja', 'Qazolarni belgilash va qo‘shish'],
     ['focus', '🌿', 'Focus rejimi', 'Faqat qazo o‘qish uchun'],
+    ['estimate', '🧮', 'Qazo kalkulyatori', 'Boshlagan sanani bilmasangiz ham hisoblash'],
     ['history', '🗓', 'Qazo tarixi', 'Kunlar bo‘yicha ko‘rish va tahrirlash'],
     ['achievements', '🏆', 'Yutuqlar', `${ach.filter((a) => a.unlocked).length} / ${ach.length} medal`],
     ['learn', '📖', 'Qo‘llanma', 'Namoz va qazo o‘qish tartibi'],
@@ -1510,9 +1514,167 @@ function bindMethod(f) {
   $app.querySelector('#madhab').onchange = (e) => { f.madhab = e.target.value; render(); };
 }
 
+/* ---------------- Qazo kalkulyatori (sana noma'lum bo'lganlar uchun ham) ---------------- */
+const PCTS = [[0, 'o‘qimagan'], [25, 'kam'], [50, 'yarmi'], [75, 'ko‘pi'], [100, 'to‘liq']];
+const newEst = () => ({ mode: 'periods', age: '', bulugh: '12', periods: [{ to: null, pct: 0 }], birth: '', start: '', hayzDays: '7', exact: {} });
+const yrs = (n) => `${Math.round(n * 10) / 10}`.replace('.', ',');
+
+// Natija: { q, total, days, err }
+function estResult(c, includeVitr, gender) {
+  const act = includeVitr ? PRAYERS : PRAYERS.slice(0, 5);
+  const sumQ = (q) => act.reduce((a, p) => a + (q[p] || 0), 0);
+  if (c.mode === 'none') return { q: { ...EMPTY.qazo }, total: 0, days: 0 };
+  if (c.mode === 'exact') {
+    const q = { ...EMPTY.qazo };
+    for (const p of act) q[p] = Math.max(0, Math.floor(Number(c.exact[p]) || 0));
+    return { q, total: sumQ(q), days: 0 };
+  }
+  if (c.mode === 'date') {
+    if (!c.birth && !c.start) return { err: 'Tug‘ilgan sana va namozni boshlagan sanani kiriting.' };
+    const birth = parseDate(c.birth), start = parseDate(c.start);
+    if (!birth) return { err: 'Tug‘ilgan sanani tanlang.' };
+    if (!start) return { err: 'Namozni boshlagan sanani tanlang.' };
+    if (start < birth) return { err: 'Namozni boshlagan sana tug‘ilgan sanadan keyin bo‘lishi kerak.' };
+    const q = initialQazo({ birth, startDate: start, bulughAge: c.bulugh, includeVitr, gender, hayzDays: c.hayzDays });
+    return { q, total: sumQ(q), days: q.fajr };
+  }
+  const r = estimateFromPeriods({ age: c.age, bulughAge: c.bulugh, periods: c.periods, includeVitr, gender, hayzDays: c.hayzDays });
+  if (!c.age) return { err: 'Hozirgi yoshingizni kiriting.', rows: r.rows };
+  if (!r.ok) return { err: 'Hozirgi yosh balog‘at yoshidan katta bo‘lishi kerak.', rows: r.rows };
+  return { q: r.q, total: sumQ(r.q), days: r.days, rows: r.rows };
+}
+
+function estOutHtml(r, includeVitr) {
+  if (r.err) return `<span class="sub">${r.err}</span>`;
+  if (!r.total) return '<b>0</b> <span class="sub">— hisob 0 dan boshlanadi, keyingi qazolarni ilova o‘zi kuzatadi</span>';
+  const per = includeVitr ? 6 : 5;
+  return `<div class="est-big">≈ ${num(r.total)} ta qazo</div>
+    <div class="sub">${r.days ? `≈ ${num(r.days)} kun (${yrs(r.days / 365.2425)} yil) × ${per} namoz${includeVitr ? ' (vitr bilan)' : ''}` : 'kiritilgan sonlar bo‘yicha'}</div>
+    ${r.days ? '<div class="sub" style="margin-top:4px">Bu <b>taxminiy</b> hisob — keyin istalgan payt tuzatish mumkin.</div>' : ''}`;
+}
+
+function estimatorHtml(c, includeVitr, gender) {
+  const r = estResult(c, includeVitr, gender);
+  const modes = [['periods', '🧮 Yosh bo‘yicha'], ['date', '📅 Sana bo‘yicha'], ['exact', '✍️ Sonini bilaman'], ['none', '⏭ Bilmayman']];
+  let body = '';
+  if (c.mode === 'periods') {
+    const n = c.periods.length;
+    body = `
+      <div class="row" style="gap:10px">
+        <div class="grow"><label>Hozirgi yoshingiz</label><input type="number" inputmode="numeric" data-c="age" value="${esc(c.age)}" placeholder="masalan, 30" /></div>
+        <div class="grow"><label>Balog‘atga yetgan yosh</label><input type="number" inputmode="numeric" data-c="bulugh" value="${esc(c.bulugh)}" /></div>
+      </div>
+      <p class="hint">Balog‘at yoshini bilmasangiz: Hanafiy mazhabida belgilar bo‘lmasa, eng kech chegara — <b>15 yosh</b>. Ikkilansangiz, ertaroq yoshni tanlang (ehtiyot).</p>
+      <div class="sheet-l">Hayot davrlaringiz — har birida namozni qancha o‘qigansiz?</div>
+      ${c.periods.map((pr, i) => {
+        const row = r.rows?.[i];
+        const last = i === n - 1;
+        return `<div class="per">
+          <div class="per-h"><b><span data-from="${i}">${row ? row.from : esc(c.bulugh)}</span> – ${last ? 'hozirgacha' : `<input type="number" inputmode="numeric" class="per-to" data-to="${i}" value="${esc(pr.to ?? '')}" />`} yosh</b>
+            ${n > 1 ? `<button class="per-x" data-del="${i}" aria-label="Davrni o‘chirish">×</button>` : ''}</div>
+          <div class="pctseg">${PCTS.map(([v, t]) => `<button class="${Number(pr.pct) === v ? 'on' : ''}" data-pct="${i}" data-v="${v}" aria-pressed="${Number(pr.pct) === v}"><b>${v}%</b><span>${t}</span></button>`).join('')}</div>
+          <div class="sub per-o" data-pout="${i}">${row ? `≈ ${yrs(row.days / 365.2425)} yil qazo` : ''}</div>
+        </div>`; }).join('')}
+      <button class="btn" id="perAdd">＋ Davr qo‘shish</button>
+      <p class="hint">Masalan: 13–20 yosh — umuman o‘qimagan (0%), 20–26 — ba’zan (50%), 26 dan hozirgacha — deyarli to‘liq (100%).
+        Ikkilansangiz, <b>kamroq foizni</b> tanlang — ehtiyot uchun.</p>`;
+  } else if (c.mode === 'date') {
+    body = `
+      <label>Tug‘ilgan sana</label><input type="date" data-c="birth" value="${esc(c.birth)}" max="${dayKey(new Date())}" />
+      <label>Balog‘at yoshi</label><input type="number" data-c="bulugh" value="${esc(c.bulugh)}" />
+      <label>Namozni (muntazam) boshlagan sana</label><input type="date" data-c="start" value="${esc(c.start)}" max="${dayKey(new Date())}" />`;
+  } else if (c.mode === 'exact') {
+    body = `<p class="hint">Har bir namozdan nechta qazo borligini aniq bilsangiz — shu yerga yozing.</p>
+      ${(includeVitr ? PRAYERS : PRAYERS.slice(0, 5)).map((p) => `<div class="row" style="margin-top:8px"><span class="grow">${ICONS[p]} ${NAMES[p]}</span>
+        <input type="number" inputmode="numeric" data-ex="${p}" value="${esc(c.exact[p] ?? '')}" placeholder="0" style="width:130px" /></div>`).join('')}`;
+  } else {
+    body = `<p class="hint">Hisob 0 dan boshlanadi. Bundan keyin vaqtida o‘qilmagan namozlarni ilova o‘zi qazoga qo‘shadi.
+      Eski qazolaringizni keyin <b>Bugungi reja → 🧮 Qazo kalkulyatori</b> orqali istalgan payt hisoblab qo‘shishingiz mumkin.</p>`;
+  }
+  return `<div class="chips est-modes">${modes.map(([k, l]) => `<button class="chip ${c.mode === k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>
+    ${body}
+    ${gender === 'ayol' && (c.mode === 'periods' || c.mode === 'date') ? `<label>Oyiga o‘rtacha hayz kunlari</label><input type="number" data-c="hayzDays" value="${esc(c.hayzDays)}" />
+      <p class="hint">Har oy shuncha kun hisobdan ayiriladi (taxminiy).</p>` : ''}
+    ${c.mode === 'none' ? '' : `<div class="est-out" id="estOut" aria-live="polite">${estOutHtml(r, includeVitr)}</div>`}
+    <p class="hint">Qazo soni aniq bilinmasa, ko‘proq ishongan taxminingiz bo‘yicha hisoblang, ikkilansangiz — ko‘prog‘ini oling.
+      Aniq hukm uchun imomga yoki <a href="https://fatvo.uz/uz/ask" target="_blank" rel="noopener">fatvo.uz</a> ga murojaat qiling.</p>`;
+}
+
+// Kiritishlar: raqamlar yozilganda natija joyida yangilanadi (fokus yo'qolmaydi)
+function bindEstimator(c, getOpts) {
+  const refresh = () => {
+    const { includeVitr, gender } = getOpts();
+    const r = estResult(c, includeVitr, gender);
+    const out = $app.querySelector('#estOut');
+    if (out) out.innerHTML = estOutHtml(r, includeVitr);
+    (r.rows || []).forEach((row, i) => {
+      const f = $app.querySelector(`[data-from="${i}"]`); if (f) f.textContent = row.from;
+      const o = $app.querySelector(`[data-pout="${i}"]`); if (o) o.textContent = `≈ ${yrs(row.days / 365.2425)} yil qazo`;
+    });
+  };
+  $app.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => { c.mode = b.dataset.mode; render(); }; });
+  $app.querySelectorAll('[data-c]').forEach((el) => { el.oninput = () => { c[el.dataset.c] = el.value; refresh(); }; });
+  $app.querySelectorAll('[data-to]').forEach((el) => { el.oninput = () => { c.periods[Number(el.dataset.to)].to = el.value; refresh(); }; });
+  $app.querySelectorAll('[data-ex]').forEach((el) => { el.oninput = () => { c.exact[el.dataset.ex] = el.value; refresh(); }; });
+  $app.querySelectorAll('[data-pct]').forEach((b) => { b.onclick = () => { c.periods[Number(b.dataset.pct)].pct = Number(b.dataset.v); render(); }; });
+  $app.querySelectorAll('[data-del]').forEach((b) => { b.onclick = () => { c.periods.splice(Number(b.dataset.del), 1); render(); }; });
+  const add = $app.querySelector('#perAdd');
+  if (add) add.onclick = () => {
+    const { includeVitr, gender } = getOpts();
+    const r = estResult(c, includeVitr, gender);
+    const last = r.rows?.at(-1);
+    const mid = last ? Math.round((last.from + last.to) / 2) : '';
+    c.periods.splice(c.periods.length - 1, 0, { to: mid === last?.from ? '' : mid, pct: c.periods.at(-1).pct });
+    c.periods.at(-1).pct = 100;
+    render();
+  };
+}
+
+// Mavjud foydalanuvchilar uchun alohida sahifa
+let est = null;
+function renderEstimate() {
+  const s = state.settings;
+  est ||= { ...newEst(), bulugh: '12' };
+  const r = estResult(est, s.includeVitr, s.gender);
+  const cur = totalQazo(state);
+  $app.innerHTML = `
+    ${topbar('Qazo kalkulyatori', 'Namozni qachon boshlaganingizni aniq bilmasangiz ham', true)}
+    <div class="card" style="margin-top:0">${estimatorHtml(est, s.includeVitr, s.gender)}</div>
+    ${est.mode !== 'none' ? `<div class="card">
+      <div class="kv"><span class="kv-i">🕌</span><span class="grow">Hozirgi qazo hisobingiz</span><b>${num(cur)} ta</b></div>
+      <button class="btn primary" id="estAdd">＋ Hisobga qo‘shish</button>
+      <button class="btn" id="estReplace">↺ Hisobni shu bilan almashtirish</button>
+      <p class="hint">“Qo‘shish” — hozirgi hisob ustiga qo‘shiladi (masalan, ilova kuzatgan qazolar ustiga eski yillar).
+        “Almashtirish” — hozirgi qazo hisobi o‘rniga shu natija yoziladi. Ado qilingan qazolar tarixi o‘chmaydi.</p>
+    </div>` : ''}`;
+  bindBack('qazo');
+  bindEstimator(est, () => ({ includeVitr: s.includeVitr, gender: s.gender }));
+  const apply = (replace) => {
+    const res = estResult(est, s.includeVitr, s.gender);
+    if (res.err) return toast(res.err);
+    if (!res.total) return toast('Natija 0 — qo‘shiladigan qazo yo‘q.');
+    const done = totalDone(state);
+    let qazo;
+    if (replace) {
+      if (!confirm(`Qazo hisobingiz ${num(cur)} ta o‘rniga ${num(res.total)} ta bo‘ladi. Davom etasizmi?`)) return;
+      qazo = { ...EMPTY.qazo, ...res.q };
+    } else {
+      qazo = { ...state.qazo };
+      for (const p of PRAYERS) qazo[p] = (qazo[p] || 0) + (res.q[p] || 0);
+    }
+    const left = activePrayers(s).reduce((a, p) => a + (qazo[p] || 0), 0);
+    save({ ...state, qazo, startTotal: replace ? left + done : Math.max(Number(state.startTotal) || 0, cur + done) + res.total });
+    est = null;
+    toast(replace ? `Qazo hisobi yangilandi: ${num(left)} ta` : `Qazo hisobiga ${num(res.total)} ta qo‘shildi`);
+    go('qazo');
+  };
+  $app.querySelector('#estAdd')?.addEventListener('click', () => apply(false));
+  $app.querySelector('#estReplace')?.addEventListener('click', () => apply(true));
+}
+
 /* ---------------- Boshlang'ich sozlash ---------------- */
 function renderSetup() {
-  form ||= { name: '', birth: '', gender: 'erkak', bulughAge: '12', start: '', hayzDays: '7', dailyGoal: '3',
+  form ||= { name: '', gender: 'erkak', est: newEst(), dailyGoal: '3',
     includeVitr: true, city: '', lat: null, lng: null, method: suggestMethod('', TZ), methodAuto: true, madhab: 'hanafi',
     fajrAngle: '15', ishaAngle: '15' };
   const f = form;
@@ -1533,14 +1695,10 @@ function renderSetup() {
       ${['erkak', 'ayol'].map((g) => `<button class="chip ${f.gender === g ? 'on' : ''}" data-gender="${g}">${g === 'erkak' ? 'Erkak' : 'Ayol'}</button>`).join('')}
     </div>
 
-    <div class="section">Eski qazolar (ixtiyoriy)</div>
-    <p class="hint">Bo‘sh qoldirsangiz, hisob 0 dan boshlanadi. Natija <b>taxminiy</b> — keyin qo‘lda tuzatsa bo‘ladi.
-      Qaysi namozlar qazo bo‘lganini aniq bilsangiz, o‘sha sonni kiritish afzal.</p>
-    <label>Tug‘ilgan sana</label><input type="date" data-f="birth" value="${esc(f.birth)}" max="${dayKey(new Date())}" />
-    <label>Balog‘at yoshi</label><input type="number" data-f="bulughAge" value="${esc(f.bulughAge)}" />
-    <label>Namozni boshlagan sana</label><input type="date" data-f="start" value="${esc(f.start)}" max="${dayKey(new Date())}" />
-    ${f.gender === 'ayol' ? `<label>Oyiga o‘rtacha hayz kunlari</label><input type="number" data-f="hayzDays" value="${esc(f.hayzDays)}" />
-      <p class="hint">⚠️ Bu <b>taxminiy</b> hisob: har oy bir xil kun ayiriladi. Natijani keyin Qazo bo‘limidagi “⋯” orqali o‘zingiz tuzatishingiz mumkin.</p>` : ''}
+    <div class="section">Eski qazolar</div>
+    <p class="hint">Namozni qachon boshlaganingizni aniq bilmasangiz yoki o‘qib-o‘qimay yurgan bo‘lsangiz — <b>“Yosh bo‘yicha”</b> hisoblang.
+      Bo‘sh qoldirsangiz, hisob 0 dan boshlanadi — keyin <b>Menyu → 🧮 Qazo kalkulyatori</b> orqali hisoblaysiz.</p>
+    ${estimatorHtml(f.est, f.includeVitr, f.gender)}
 
     <div class="section">Sozlamalar</div>
     <label>Kunlik maqsad (nechta qazo)</label><input type="number" data-f="dailyGoal" value="${esc(f.dailyGoal)}" />
@@ -1552,18 +1710,15 @@ function renderSetup() {
   bindInputs(f);
   bindLocation(f);
   bindMethod(f);
-  $app.querySelector('#vitr').onchange = (e) => { f.includeVitr = e.target.checked; };
+  bindEstimator(f.est, () => ({ includeVitr: f.includeVitr, gender: f.gender }));
+  $app.querySelector('#vitr').onchange = (e) => { f.includeVitr = e.target.checked; render(); };
   $app.querySelectorAll('[data-gender]').forEach((b) => { b.onclick = () => { f.gender = b.dataset.gender; render(); }; });
   $app.querySelector('#start').onclick = () => {
     if (f.lat == null) return toast('Avval joylashuvni aniqlang yoki shaharni tanlang.');
-    let qazo = { ...EMPTY.qazo };
-    if (f.birth || f.start) {
-      const birth = parseDate(f.birth), start = parseDate(f.start);
-      if (!birth) return toast('Tug‘ilgan sanani tanlang.');
-      if (!start) return toast('Namozni boshlagan sanani tanlang.');
-      if (start < birth) return toast('Namozni boshlagan sana tug‘ilgan sanadan keyin bo‘lishi kerak.');
-      qazo = initialQazo({ birth, startDate: start, bulughAge: f.bulughAge, includeVitr: f.includeVitr, gender: f.gender, hayzDays: f.hayzDays });
-    }
+    const skip = f.est.mode === 'periods' && !String(f.est.age).trim(); // to'ldirilmagan — keyinga qoldirildi
+    const res = skip ? estResult({ mode: 'none' }, f.includeVitr, f.gender) : estResult(f.est, f.includeVitr, f.gender);
+    if (res.err) return toast(`${res.err} Yoki “⏭ Bilmayman” ni tanlang.`);
+    const qazo = { ...EMPTY.qazo, ...res.q };
     const settings = {
       name: f.name.trim(), city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode || '',
       method: f.method, methodAuto: f.methodAuto, madhab: f.madhab, fajrAngle: Number(f.fajrAngle) || 15, ishaAngle: Number(f.ishaAngle) || 15,
@@ -1876,7 +2031,7 @@ function bindInputs(f) {
 }
 
 /* ---------------- Android "Orqaga" tugmasi ---------------- */
-const BACK_TO = { support: 'settings', history: 'calendar', achievements: 'stats', themes: 'menu', learn: 'menu', settings: 'menu' };
+const BACK_TO = { estimate: 'qazo', support: 'settings', history: 'calendar', achievements: 'stats', themes: 'menu', learn: 'menu', settings: 'menu' };
 function onBack() {
   const sheet = document.querySelector('.sheet-bg');
   if (sheet) return sheet.remove();

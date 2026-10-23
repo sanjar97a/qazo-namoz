@@ -247,6 +247,29 @@ export function initialQazo({ birth, bulughAge, startDate, includeVitr, gender, 
   return q;
 }
 
+// Sana noma'lum bo'lganlar uchun: hayot davrlari bo'yicha taxminiy hisob.
+// periods: [{ to: yosh | null (oxirgisi — hozirgacha), pct: o'qigan foizi 0..100 }]
+// Har davr boshlanishi — oldingi davr oxiri (birinchisi — balog'at yoshi).
+export function estimateFromPeriods({ age, bulughAge, periods, includeVitr, gender, hayzDays }) {
+  const A = Number(age), B = Number(bulughAge);
+  const q = { fajr: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, vitr: 0 };
+  if (!(A > 0) || !(B > 0) || A <= B || !periods?.length) return { q, days: 0, rows: [], ok: false };
+  const hayz = gender === 'ayol' && Number(hayzDays) > 0 ? 1 - Math.min(Number(hayzDays), 15) / 30 : 1;
+  let from = B, days = 0;
+  const rows = periods.map((pr, i) => {
+    const last = i === periods.length - 1;
+    const to = last ? A : Math.min(A, Math.max(from, Number(pr.to) || from));
+    const pct = Math.min(100, Math.max(0, Number(pr.pct) || 0));
+    const d = (to - from) * 365.2425 * (1 - pct / 100) * hayz;
+    const row = { from, to, pct, days: d };
+    days += d; from = to;
+    return row;
+  });
+  const n = Math.round(days);
+  for (const p of includeVitr ? PRAYERS : PRAYERS.slice(0, 5)) q[p] = n;
+  return { q, days: n, rows, ok: true };
+}
+
 export function totalQazo(state) {
   return activePrayers(state.settings).reduce((a, p) => a + (state.qazo[p] || 0), 0);
 }
