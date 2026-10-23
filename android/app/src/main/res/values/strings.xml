@@ -4,4 +4,6 @@
     <string name="title_activity_main">Namoz va Qazo</string>
     <string name="package_name">uz.sanjar97a.namozqazo</string>
     <string name="custom_url_scheme">uz.sanjar97a.namozqazo</string>
+    <string name="widget_label">Namoz vaqtlari</string>
+    <string name="widget_desc">Bugungi namoz vaqtlari, hozirgi vaqt ajratib ko‘rsatiladi</string>
 </resources>

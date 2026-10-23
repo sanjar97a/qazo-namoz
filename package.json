@@ -6,7 +6,7 @@
   "scripts": {
     "build": "bash scripts/build-web.sh www",
     "sync": "npm run build && npx cap sync android",
-    "test": "TZ=Asia/Tashkent node --test test/prayer.test.mjs test/stats.test.mjs test/journey.test.mjs"
+    "test": "TZ=Asia/Tashkent node --test test/prayer.test.mjs test/stats.test.mjs test/journey.test.mjs test/widget.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bosh ekran vidjeti: bugungi namoz vaqtlari -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:background="@drawable/widget_bg"
+    android:paddingLeft="8dp" android:paddingRight="8dp" android:paddingTop="6dp" android:paddingBottom="8dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:paddingLeft="6dp" android:paddingRight="6dp" android:layout_marginBottom="4dp">
+        <TextView android:id="@+id/w_city" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+            android:text="Namoz vaqtlari" android:textColor="#D9E8E0" android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
+        <TextView android:id="@+id/w_date" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="" android:textColor="#E9C46A" android:textSize="12sp" android:maxLines="1" />
+    </LinearLayout>
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+        <LinearLayout android:id="@+id/w_col0" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Bomdod" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_col1" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Quyosh" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_col2" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Peshin" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_col3" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Asr" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_col4" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n4" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Shom" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t4" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+        <LinearLayout android:id="@+id/w_col5" android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">
+            <TextView android:id="@+id/w_n5" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="Xufton" android:textColor="#BFD6CB" android:textSize="12sp" android:maxLines="1" />
+            <TextView android:id="@+id/w_t5" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="2dp" android:paddingLeft="7dp" android:paddingRight="7dp" android:paddingTop="1dp" android:paddingBottom="1dp"
+                android:text="--:--" android:textColor="#FFFFFF" android:textSize="15sp" android:textStyle="bold" android:maxLines="1" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

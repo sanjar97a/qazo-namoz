@@ -19,6 +19,7 @@ import {
   recentPace, recordDone, streak, summary, totalDone, unlockDates,
 } from './stats.js';
 import { journeySvg } from './journey.js';
+import { pinWidget, syncWidget, widgetSupported } from './widget.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
 const SUPPORT = {
@@ -37,7 +38,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '23';
+export const APP_VERSION = '24';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -88,6 +89,7 @@ function save(next) {
   try { localStorage.setItem(KEY, json); } catch {}
   mirror(json);
   render();
+  syncWidget(state);
   clearTimeout(schedTimer);
   schedTimer = setTimeout(() => reschedule(state, true), 1500);
 }
@@ -579,6 +581,7 @@ function renderHome() {
     </div>
 
     ${installHtml(false)}
+    ${widgetHintHtml()}
     ${s.excused ? `<div class="install-card" style="border-color:var(--gold-bright)">
       <div class="ic-title">🌸 Uzrli kunlar rejimi yoqilgan</div>
       <div class="ic-text">Vaqti o‘tgan namozlar qazo hisobiga qo‘shilmaydi, eslatmalar yuborilmaydi.</div>
@@ -603,6 +606,8 @@ function renderHome() {
     `;
 
   bindInstall();
+  $app.querySelector('#wgAdd')?.addEventListener('click', addWidget);
+  $app.querySelector('#wgX')?.addEventListener('click', () => { try { localStorage.setItem(WIDGET_HINT, '1'); } catch {} render(); });
   $app.querySelector('#toQibla').onclick = () => go('qibla');
   $app.querySelector('#toSettings').onclick = () => go('settings');
   $app.querySelector('#toQuote').onclick = () => openQuote(todayQuote().id);
@@ -1352,6 +1357,7 @@ function renderMenu() {
     ['history', '🗓', 'Qazo tarixi', 'Kunlar bo‘yicha ko‘rish va tahrirlash'],
     ['achievements', '🏆', 'Yutuqlar', `${ach.filter((a) => a.unlocked).length} / ${ach.length} medal`],
     ['learn', '📖', 'Qo‘llanma', 'Namoz va qazo o‘qish tartibi'],
+    ['widget', '📲', 'Bosh ekran vidjeti', 'Namoz vaqtlari telefon ekranida'],
     ['themes', '🎨', 'Mavzular', THEMES.find((t) => t[0] === resolvedTheme())?.[2] || ''],
     ['settings', '⚙️', 'Sozlamalar', 'Joylashuv, vaqtlar, bildirishnomalar, zaxira'],
     ['share', '💚', 'Ilovani ulashish', 'Do‘stlaringizga yuboring — savobiga sherik bo‘ling'],
@@ -1366,9 +1372,33 @@ function renderMenu() {
     const k = b.dataset.mi;
     if (k === 'focus') return openFocus();
     if (k === 'share') return shareApp();
+    if (k === 'widget') return addWidget();
     if (k === 'history') { const d = new Date(); cal ||= { y: d.getFullYear(), m: d.getMonth(), sel: dayKey(d) }; }
     go(k);
   }; });
+}
+
+/* ---------------- Bosh ekran vidjeti ---------------- */
+const WIDGET_HINT = 'widget-hint-done';
+async function addWidget() {
+  try { localStorage.setItem(WIDGET_HINT, '1'); } catch {}
+  if (!widgetSupported()) {
+    return toast('Vidjet faqat Android ilovada ishlaydi. Ilovani o‘rnatgach: bosh ekranni bosib turing → Vidjetlar → “Namoz va Qazo”.', 8000);
+  }
+  await syncWidget(state, true);
+  const r = await pinWidget();
+  if (!r.ok) toast('Bosh ekranning bo‘sh joyini bosib turing → “Vidjetlar” → “Namoz va Qazo” → “Namoz vaqtlari”ni ekranga torting.', 9000);
+  render();
+}
+function widgetHintHtml() {
+  let done = false;
+  try { done = Boolean(localStorage.getItem(WIDGET_HINT)); } catch {}
+  if (done || !widgetSupported()) return '';
+  return `<div class="install-card">
+    <button class="x" id="wgX" aria-label="Yopish">×</button>
+    <div class="ic-title">📲 Namoz vaqtlari — bosh ekranda</div>
+    <div class="ic-text">Ilovani ochmasdan, telefon ekranida bugungi vaqtlarni ko‘ring. Hozirgi namoz oltin rangda ajralib turadi.</div>
+    <button class="btn primary" id="wgAdd">Vidjetni qo‘shish</button></div>`;
 }
 
 /* ---------------- Mavzular ---------------- */
@@ -1866,6 +1896,7 @@ applyOfficial(state.settings);
 render();
 check();
 restoreFromMirror();
+syncWidget(state, true);
 if (state.settings) mirror(JSON.stringify(state));
 if (state.settings) {
   refreshOfficial(state.settings).then((ch) => { if (ch && screen === 'home') render(); reschedule(state, true); });
@@ -1876,6 +1907,7 @@ setInterval(checkUpdate, 30 * 60000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   checkUpdate();
+  syncWidget(state);
   reschedule(state);
   if (screen !== 'home') return;
   check();
