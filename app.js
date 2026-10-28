@@ -39,7 +39,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '26';
+export const APP_VERSION = '27';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -368,14 +368,30 @@ function showApkSheet() {
   bg.querySelector('#sheetGo').onclick = () => setTimeout(() => bg.remove(), 500);
 }
 
+// Natija: 'new' | 'latest' | 'offline' | 'error'
 async function checkUpdate() {
-  if (!navigator.onLine || IS_PLAY) return; // Play versiyasi faqat Google Play orqali yangilanadi
+  if (IS_PLAY) return 'latest'; // Play versiyasi faqat Google Play orqali yangilanadi
+  if (!navigator.onLine) return 'offline';
+  let res = 'error';
   try {
-    const r = await fetch(`${isNative() ? APP_URL : ''}version.json?t=${Date.now()}`, { cache: 'no-store' });
-    const v = String((await r.json()).version || '');
-    if (v && v !== APP_VERSION && v !== newVersion) { newVersion = v; render(); }
+    // Avval ilova saytidan, bo'lmasa GitHub'dagi nusxadan (sayt keshi eskirgan bo'lsa ham yangilanish ko'rinsin)
+    const urls = [`${isNative() ? APP_URL : ''}version.json?t=${Date.now()}`,
+      `https://raw.githubusercontent.com/sanjar97a/qazo-namoz/main/version.json?t=${Date.now()}`];
+    let best = '';
+    for (const u of urls) {
+      try {
+        const r = await fetch(u, { cache: 'no-store' });
+        const v = String((await r.json()).version || '');
+        if (v && Number(v) > Number(best || 0)) best = v;
+      } catch {}
+    }
+    if (best) {
+      res = Number(best) > Number(APP_VERSION) ? 'new' : 'latest';
+      if (res === 'new' && best !== newVersion) { newVersion = best; render(); }
+    }
   } catch {}
   try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch {}
+  return res;
 }
 
 // Faqat ilova fayllari keshi tozalanadi — sizning ma'lumotlaringiz (qazo, sozlamalar) saqlanib qoladi
@@ -1365,6 +1381,7 @@ function renderMenu() {
     ['widget', '📲', 'Bosh ekran vidjeti', 'Namoz vaqtlari telefon ekranida'],
     ['themes', '🎨', 'Mavzular', THEMES.find((t) => t[0] === resolvedTheme())?.[2] || ''],
     ['settings', '⚙️', 'Sozlamalar', 'Joylashuv, vaqtlar, bildirishnomalar, zaxira'],
+    ...(IS_PLAY ? [] : [['update', '🔄', 'Yangilanishni tekshirish', `Hozirgi versiya: ${APP_VERSION}`]]),
     ['share', '💚', 'Ilovani ulashish', 'Do‘stlaringizga yuboring — savobiga sherik bo‘ling'],
   ];
   if (hasSupport()) items.push(['support', '🤝', 'Qo‘llab-quvvatlash', 'Loyihaga yordam']);
@@ -1378,6 +1395,13 @@ function renderMenu() {
     if (k === 'focus') return openFocus();
     if (k === 'share') return shareApp();
     if (k === 'widget') return addWidget();
+    if (k === 'update') return (async () => {
+      toast('⏳ Tekshirilmoqda…', 2000);
+      const r = await checkUpdate();
+      if (r === 'new') applyUpdate();
+      else toast(r === 'latest' ? `Sizda eng yangi versiya (v${APP_VERSION})` : r === 'offline' ? 'Tekshirish uchun internet kerak.'
+        : 'Server bilan bog‘lanib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.');
+    })();
     if (k === 'history') { const d = new Date(); cal ||= { y: d.getFullYear(), m: d.getMonth(), sel: dayKey(d) }; }
     go(k);
   }; });
@@ -1841,8 +1865,12 @@ function renderSettings() {
   $app.querySelector('#shareBtn').onclick = shareApp;
   const cu = $app.querySelector('#checkUpd');
   if (cu) cu.onclick = async () => {
-    await checkUpdate();
-    if (!newVersion) toast(navigator.onLine ? `Sizda eng yangi versiya (v${APP_VERSION})` : 'Tekshirish uchun internet kerak.');
+    cu.disabled = true; cu.textContent = '⏳ Tekshirilmoqda…';
+    const r = await checkUpdate();
+    cu.disabled = false; cu.textContent = '🔄 Yangilanishni tekshirish';
+    if (r === 'new') { toast(`Yangi versiya bor: v${newVersion}`); applyUpdate(); }
+    else toast(r === 'latest' ? `Sizda eng yangi versiya (v${APP_VERSION})` : r === 'offline' ? 'Tekshirish uchun internet kerak.'
+      : 'Server bilan bog‘lanib bo‘lmadi. Birozdan keyin qayta urinib ko‘ring.');
   };
   $app.querySelector('#supportBtn').onclick = () => go('support');
   $app.querySelector('#learnBtn').onclick = () => go('learn');
@@ -2047,6 +2075,8 @@ function onBack() {
   window.Capacitor?.Plugins?.App?.minimizeApp?.(); // bosh sahifada — ilovani yig'ish (yopmasdan)
 }
 try { if (isNative()) window.Capacitor?.Plugins?.App?.addListener('backButton', onBack); } catch {}
+// Ilova orqa fondan qaytganda ham yangilanish tekshiriladi
+try { if (isNative()) window.Capacitor?.Plugins?.App?.addListener('appStateChange', (e) => { if (e?.isActive) { checkUpdate(); syncWidget(state); } }); } catch {}
 onNotificationTap((id) => openQuote(id));
 
 /* ---------------- Ishga tushirish ---------------- */
