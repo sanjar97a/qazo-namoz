@@ -20,6 +20,7 @@ import {
 } from './stats.js';
 import { journeySvg } from './journey.js';
 import { pinWidget, syncWidget, widgetSupported } from './widget.js';
+import { setStatsEnabled, statsEnabled, trackOpen, trackScreen, trackSetupDone } from './telemetry.js';
 
 // ===== Qo'llab-quvvatlash sozlamalari: o'z ma'lumotlaringizni yozing (bo'sh qolsa ko'rinmaydi) =====
 const SUPPORT = {
@@ -38,7 +39,7 @@ const SHARE_URL = IS_PLAY || PLAY_LIVE ? PLAY_URL : APP_URL;
 const SHARE_TEXT = 'Namoz va Qazo — namoz vaqtlari (dunyoning istalgan joyida) va qazo namozlar hisobi. Bepul, internetsiz ishlaydi.';
 
 // ===== Har yangi versiyada: shu raqamni, version.json va sw.js dagi VERSION ni bir xil oshiring =====
-export const APP_VERSION = '25';
+export const APP_VERSION = '26';
 let newVersion = null;
 
 const KEY = 'namoz-qazo-state-v1';
@@ -279,7 +280,7 @@ let lastScreen = null;
 function render() {
   const cur = state.settings ? screen : 'setup';
   const changed = cur !== lastScreen;
-  if (changed) { lastScreen = cur; window.scrollTo(0, 0); }
+  if (changed) { lastScreen = cur; window.scrollTo(0, 0); trackScreen(cur); }
   $app.className = '';
   if (!state.settings) { renderSetup(); $app.classList.add('no-tabs'); }
   else if (screen === 'settings') renderSettings();
@@ -1719,6 +1720,7 @@ function renderSetup() {
     const res = skip ? estResult({ mode: 'none' }, f.includeVitr, f.gender) : estResult(f.est, f.includeVitr, f.gender);
     if (res.err) return toast(`${res.err} Yoki “⏭ Bilmayman” ni tanlang.`);
     const qazo = { ...EMPTY.qazo, ...res.q };
+    trackSetupDone(skip ? 'none' : f.est.mode);
     const settings = {
       name: f.name.trim(), city: f.city, lat: f.lat, lng: f.lng, countryCode: f.countryCode || '',
       method: f.method, methodAuto: f.methodAuto, madhab: f.madhab, fajrAngle: Number(f.fajrAngle) || 15, ishaAngle: Number(f.ishaAngle) || 15,
@@ -1765,6 +1767,8 @@ function renderSettings() {
 
     <div class="section" style="margin-top:4px">Ko‘rinish</div>
     <button class="mi" id="toThemes"><span class="mi-i">🎨</span><span class="grow"><b>Mavzular</b><span class="sub">${THEMES.find((t) => t[0] === getTheme())?.[2] || ''} · jonli osmon</span></span><span class="mi-a">›</span></button>
+    <div class="switch"><span>📊 Anonim statistikani yuborish<br><span class="sub">Faqat sonlar: nechta qurilma ochgani, versiya, mamlakat. Ism, joylashuv, qazo soni yuborilmaydi.</span></span>
+      <input type="checkbox" id="statsT" ${statsEnabled() ? 'checked' : ''} /></div>
     ${installHtml(true)}
 
     <div class="section">Joylashuv</div>
@@ -1832,6 +1836,7 @@ function renderSettings() {
   if (ra) ra.onclick = () => { f.offsets = {}; render(); };
 
   $app.querySelector('#toThemes').onclick = () => go('themes');
+  $app.querySelector('#statsT').onchange = (e) => { setStatsEnabled(e.target.checked); toast(e.target.checked ? 'Anonim statistika yoqildi' : 'Statistika yuborilmaydi'); };
   bindNotify(f);
   $app.querySelector('#shareBtn').onclick = shareApp;
   const cu = $app.querySelector('#checkUpd');
@@ -2052,6 +2057,7 @@ render();
 check();
 restoreFromMirror();
 syncWidget(state, true);
+trackOpen(APP_VERSION, Boolean(state.settings));
 if (state.settings) mirror(JSON.stringify(state));
 if (state.settings) {
   refreshOfficial(state.settings).then((ch) => { if (ch && screen === 'home') render(); reschedule(state, true); });

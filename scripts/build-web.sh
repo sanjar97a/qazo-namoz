@@ -5,7 +5,7 @@ set -euo pipefail
 OUT="${1:-www}"
 CH="${CHANNEL:-web}"
 rm -rf "$OUT" && mkdir -p "$OUT"
-cp index.html app.js prayer.js location.js official.js notify.js quotes.js stats.js learn.js qibla.js journey.js widget.js geomag.js adhan.js sw.js manifest.webmanifest version.json icon-192.png icon-512.png privacy.html "$OUT"/
+cp index.html app.js prayer.js location.js official.js notify.js quotes.js stats.js learn.js qibla.js journey.js widget.js telemetry.js geomag.js adhan.js sw.js manifest.webmanifest version.json icon-192.png icon-512.png privacy.html "$OUT"/
 cp -r fonts "$OUT"/
 printf "export const CHANNEL = '%s';\n" "$CH" > "$OUT/channel.js"
 echo "Veb fayllar $OUT ga yig'ildi (kanal: $CH)"
